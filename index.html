@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Market Intel</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{
+  --bg:#f1f5f9;--card:#fff;--border:#e2e8f0;--text:#0f172a;--muted:#64748b;--faint:#94a3b8;
+  --bull:#16a34a;--bear:#dc2626;--neutral:#6b7280;--watch:#d97706;
+  --conv:#7c3aed;--gem:#b45309;--gem-bg:#fefce8;
+  --bao:#7c3aed;--bao-light:#f5f3ff;--bao-border:#ddd6fe;
+  --radius:12px;--safe-top:env(safe-area-inset-top,0px);
+}
+.dark{
+  --bg:#1a1a2e;--card:#16213e;--border:#2d3561;--text:#e2e8f0;--muted:#94a3b8;--faint:#64748b;
+  --bao-light:#2d1b69;--bao-border:#4c1d95;--gem-bg:#2d2006;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--bg);color:var(--text);font-size:14px;
+  padding:0 0 80px 0;
+  padding-top:calc(var(--safe-top) + 8px);
+}
+
+/* ── Sticky tab bar ── */
+.tabbar{
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--card);border-top:1px solid var(--border);
+  display:flex;z-index:100;
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+.tbtab{
+  flex:1;display:flex;flex-direction:column;align-items:center;
+  padding:8px 4px 6px;border:none;background:none;cursor:pointer;
+  font-size:9px;font-weight:600;color:var(--faint);gap:3px;
+}
+.tbtab.active{color:var(--bao)}
+.tbtab svg{width:20px;height:20px;fill:currentColor}
+
+/* ── Page panels ── */
+.page{display:none;padding:0 12px}
+.page.active{display:block}
+
+/* ── Header strip ── */
+.hdr-strip{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 12px 6px;position:sticky;top:var(--safe-top);
+  background:var(--bg);z-index:10;
+}
+.hdr-title{font-size:15px;font-weight:800;color:var(--bao)}
+.hdr-sub{font-size:10px;color:var(--faint)}
+.mkt-badge{
+  font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;
+  border:1px solid var(--border);color:var(--text);background:var(--card);
+}
+
+/* ── Section titles ── */
+.sec{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;
+     color:var(--muted);margin:16px 0 8px;padding:0 2px;display:flex;align-items:center;gap:6px}
+.sec::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* ── Cards ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+      padding:14px;margin-bottom:10px}
+
+/* ── Buy at Open ── */
+.bao-card{
+  background:linear-gradient(135deg,var(--bao-light) 0%,var(--bg) 100%);
+  border:1.5px solid var(--bao-border);border-radius:var(--radius);
+  padding:14px;margin-bottom:10px;
+}
+.bao-rank{font-size:9px;font-weight:800;color:var(--bao);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.bao-ticker{font-size:26px;font-weight:900;line-height:1;margin-bottom:6px}
+.bao-ticker.sub{font-size:19px}
+.bao-price-row{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
+.bao-price{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+.bao-chg{font-size:12px;font-weight:700}
+.bao-chg.up{color:var(--bull)} .bao-chg.dn{color:var(--bear)} .bao-chg.flat{color:var(--neutral)}
+.score-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.score-bar{flex:1;height:5px;background:var(--bao-border);border-radius:3px;overflow:hidden}
+.score-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#7c3aed,#a855f7)}
+.score-lbl{font-size:10px;font-weight:800;color:var(--bao)}
+.tags{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
+.tag{font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px}
+.tag-tier-sb{background:var(--conv);color:#fff}
+.tag-tier-b{background:var(--bull);color:#fff}
+.tag-tier-hg{background:var(--gem);color:#fff}
+.tag-sector{background:var(--border);color:var(--muted)}
+.tag-catalyst{background:var(--bao-light);color:var(--bao);border:1px solid var(--bao-border)}
+.tag-price{background:#dcfce7;color:#166534}
+.reasons{list-style:none}
+.reasons li{font-size:11px;color:var(--muted);line-height:1.5}
+.reasons li::before{content:"• ";color:var(--faint)}
+
+/* ── Mini pick rows (sub-picks) ── */
+.pick-row{
+  display:flex;align-items:center;gap:10px;
+  padding:11px 0;border-bottom:1px solid var(--border);
+}
+.pick-row:last-child{border-bottom:none}
+.pick-rk{font-size:10px;font-weight:800;color:var(--bao);width:16px;flex-shrink:0}
+.pick-sym{font-size:15px;font-weight:800;flex:1}
+.pick-right{text-align:right}
+.pick-price{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+.pick-chg{font-size:10px;font-weight:600}
+.pick-chg.up{color:var(--bull)} .pick-chg.dn{color:var(--bear)} .pick-chg.flat{color:var(--neutral)}
+.pick-score{font-size:10px;font-weight:800;color:var(--bao)}
+.pick-reason{font-size:10px;color:var(--faint);margin-top:2px}
+
+/* ── Gems ── */
+.gem-card{
+  background:var(--gem-bg);border:1px solid #fde68a;border-radius:var(--radius);
+  padding:12px;margin-bottom:8px;border-left:4px solid var(--gem);
+}
+.gem-ticker{font-size:17px;font-weight:800;margin-bottom:4px}
+.gem-meta{font-size:11px;color:var(--muted);margin-bottom:5px}
+
+/* ── Geo cards ── */
+.geo-card{
+  border-radius:var(--radius);padding:12px;margin-bottom:8px;
+  border-left:4px solid var(--watch);background:var(--card);border:1px solid var(--border);
+}
+.geo-card.HIGH{border-left-color:var(--bear)}
+.geo-card.MEDIUM{border-left-color:var(--watch)}
+.geo-card.LOW{border-left-color:var(--bull)}
+.geo-name{font-size:12px;font-weight:800;margin-bottom:3px;display:flex;align-items:center;gap:6px}
+.geo-risk{font-size:9px;font-weight:800;padding:1px 5px;border-radius:3px;color:#fff}
+.geo-risk.HIGH{background:var(--bear)} .geo-risk.MEDIUM{background:var(--watch)} .geo-risk.LOW{background:var(--bull)}
+.geo-summary{font-size:11px;color:var(--muted);margin-bottom:6px;line-height:1.4}
+.geo-impact{display:flex;gap:5px;flex-wrap:wrap}
+.geo-bull{font-size:10px;font-weight:700;padding:2px 5px;border-radius:4px;background:#dcfce7;color:#166534}
+.geo-bear{font-size:10px;font-weight:700;padding:2px 5px;border-radius:4px;background:#fee2e2;color:#991b1b}
+
+/* ── Gauge ── */
+.gauge-wrap{text-align:center;padding:10px 0}
+.gauge-lbl{font-size:18px;font-weight:800;margin-top:4px}
+.gauge-score{font-size:12px;color:var(--muted)}
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.stat-box{border-radius:8px;padding:10px 6px;text-align:center}
+.stat-box.bull{background:#f0fdf4} .stat-box.bear{background:#fef2f2} .stat-box.neut{background:#f8fafc}
+.dark .stat-box.bull{background:#052e16} .dark .stat-box.bear{background:#450a0a} .dark .stat-box.neut{background:#1e293b}
+.stat-n{font-size:20px;font-weight:800}
+.stat-n.bull{color:var(--bull)} .stat-n.bear{color:var(--bear)} .stat-n.neut{color:var(--neutral)}
+.stat-l{font-size:10px;color:var(--muted);margin-top:2px}
+
+/* ── Sector rows ── */
+.sector-row{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.sector-nm{font-size:12px;width:110px;flex-shrink:0;font-weight:500}
+.bar-wrap{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px}
+.bar-score{font-size:11px;font-weight:700;width:44px;text-align:right}
+
+/* ── Headlines ── */
+.hl-item{padding:10px 0;border-bottom:1px solid var(--border)}
+.hl-item:last-child{border-bottom:none}
+.hl-title{font-size:13px;font-weight:500;line-height:1.4;margin-bottom:4px;color:var(--text)}
+.hl-meta{font-size:10px;color:var(--faint);display:flex;gap:6px;align-items:center}
+.pill{font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px}
+.pill.bull{background:#f0fdf4;color:var(--bull)} .pill.bear{background:#fef2f2;color:var(--bear)} .pill.neut{background:#f8fafc;color:var(--neutral)}
+
+/* ── Influencer rows ── */
+.inf-row{display:flex;gap:10px;padding:11px 0;border-bottom:1px solid var(--border);align-items:flex-start}
+.inf-row:last-child{border-bottom:none}
+.inf-avi{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;background:var(--border)}
+.inf-name{font-size:13px;font-weight:700;margin-bottom:2px}
+.inf-ct{font-size:10px;color:var(--faint);margin-bottom:4px}
+.inf-sent{font-size:11px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<!-- sticky header -->
+<div class="hdr-strip">
+  <div>
+    <div class="hdr-title">📊 Market Intel</div>
+    <div class="hdr-sub" id="hdr-sub">Loading…</div>
+  </div>
+  <div class="mkt-badge" id="mkt-badge">—</div>
+</div>
+
+<!-- ── Tab pages ── -->
+<div class="page active" id="pg-picks">
+  <div class="sec">🔔 Buy at Open</div>
+  <div id="bao-lead"></div>
+  <div class="card" id="bao-subs" style="padding:8px 14px"></div>
+
+  <div class="sec">💎 Hidden Gems</div>
+  <div id="gems-list"></div>
+</div>
+
+<div class="page" id="pg-world">
+  <div class="sec">🌍 Active World Events</div>
+  <div id="geo-list"></div>
+
+  <div class="sec">📊 Sector Sentiment</div>
+  <div class="card" id="sector-list"></div>
+</div>
+
+<div class="page" id="pg-signals">
+  <div class="sec">📈 Overall Market</div>
+  <div class="card" id="market-card">
+    <div class="gauge-wrap">
+      <svg id="gauge-svg" viewBox="0 0 220 120" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:220px;height:auto;display:block;margin:auto"></svg>
+      <div class="gauge-lbl" id="gauge-lbl">—</div>
+      <div class="gauge-score" id="gauge-score">Score: —</div>
+      <div class="stat-grid">
+        <div class="stat-box bull"><div class="stat-n bull" id="bull-n">—</div><div class="stat-l">Bullish</div></div>
+        <div class="stat-box neut"><div class="stat-n neut" id="neut-n">—</div><div class="stat-l">Neutral</div></div>
+        <div class="stat-box bear"><div class="stat-n bear" id="bear-n">—</div><div class="stat-l">Bearish</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">🧑 Influencers</div>
+  <div class="card" id="inf-list"></div>
+
+  <div class="sec">📰 Top Headlines</div>
+  <div class="card" id="hl-list"></div>
+</div>
+
+<!-- ── Bottom tab bar ── -->
+<div class="tabbar">
+  <button class="tbtab active" onclick="switchTab('pg-picks',this)">
+    <svg viewBox="0 0 24 24"><path d="M11 5h2v14h-2zM5 9h2v10H5zM17 3h2v16h-2z"/></svg>
+    Picks
+  </button>
+  <button class="tbtab" onclick="switchTab('pg-world',this)">
+    <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm-1 17.93V18a1 1 0 0 0-1-1H8a1 1 0 0 1-1-1v-1a1 1 0 0 0-1-1H4.07A8.02 8.02 0 0 1 4 12c0-.35.02-.7.07-1.04l1.38 1.38a1 1 0 0 0 1.55-.16l1-1.5A1 1 0 0 1 9 10h1a1 1 0 0 0 1-1V7h1a1 1 0 0 1 1 1v1a1 1 0 0 0 1 1h.17l1.67 1.67A8.07 8.07 0 0 1 11 19.93z"/></svg>
+    World
+  </button>
+  <button class="tbtab" onclick="switchTab('pg-signals',this)">
+    <svg viewBox="0 0 24 24"><path d="M3 3h2v18H3zm16 4h2v14h-2zm-8-4h2v18h-2z"/></svg>
+    Signals
+  </button>
+</div>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────────────────────
+const D = {"generated_at_sgt":"2026-05-06 15:14 SGT","market_sentiment":{"score":0.2039,"label":"Mildly Bullish","bull_count":691,"bear_count":291,"neutral_count":295,"total_articles":1277},"buy_at_open":[{"ticker":"AI","tier":"STRONG BUY","buy_score":0.7778,"composite_score":0.6528,"signal_tags":["❌ Earnings miss","🤝 M&A activity","✅ Earnings beat","💰 Buyback/dividend"],"price":9.41,"change_pct":2.061,"week52_high":30.24,"sector":"AI / Tech","mention_count":241,"sentiment_score":0.3179,"rationale":["Pre-market: +2.1% — momentum into open","Very strong positive sentiment (+0.32)","High buzz: 241 articles today","AI / Tech sector bullish (+0.22)","Positive influencer signal detected"]},{"ticker":"HII","tier":"STRONG BUY","buy_score":0.6837,"composite_score":0.6437,"signal_tags":["✅ Earnings beat"],"price":326.13,"change_pct":-10.249,"week52_high":460.0,"sector":"Defense","mention_count":7,"sentiment_score":0.5386,"rationale":["Pre-market: -10.2% — potential dip-buy entry","Very strong positive sentiment (+0.54)","High buzz: 7 articles today","Strong market-wide bullish tailwind","✅ Earnings beat"]},{"ticker":"RPD","tier":"STRONG BUY","buy_score":0.643,"composite_score":0.468,"signal_tags":["🤝 M&A activity","✅ Earnings beat"],"price":6.68,"change_pct":2.928,"week52_high":27.1,"sector":"Cybersecurity","mention_count":6,"sentiment_score":0.2288,"rationale":["Pre-market: +2.9% — momentum into open","Positive news sentiment (+0.23)","High buzz: 6 articles today","Cybersecurity sector bullish (+0.30)","Strong market-wide bullish tailwind"]},{"ticker":"DOCN","tier":"STRONG BUY","buy_score":0.6188,"composite_score":0.4788,"signal_tags":["✅ Earnings beat"],"price":152.77,"change_pct":40.401,"week52_high":153.47,"sector":"SaaS","mention_count":6,"sentiment_score":0.5467,"rationale":["Pre-market: +40.4% — momentum into open","Very strong positive sentiment (+0.55)","High buzz: 6 articles today","SaaS sector bullish (+0.32)","Strong market-wide bullish tailwind"]},{"ticker":"PYPL","tier":"STRONG BUY","buy_score":0.5461,"composite_score":0.5061,"signal_tags":["✅ Earnings beat"],"price":46.49,"change_pct":-7.74,"week52_high":79.5,"sector":"Fintech","mention_count":7,"sentiment_score":0.6146,"rationale":["Pre-market: -7.7% — potential dip-buy entry","Very strong positive sentiment (+0.61)","High buzz: 7 articles today","Fintech sector bullish (+0.31)","Strong market-wide bullish tailwind"]}],"recommendations":[{"ticker":"AMAT","tier":"HIDDEN GEM","geo_adjustment":0.2263,"signal_adjustment":0.0,"signal_tags":[],"composite_score":0.461,"sentiment_score":0.4363,"volume_score":0.0207,"sector":"AI / Tech","mention_count":5,"reasons":["Low coverage (5 articles) — signal before crowd notices","Very strong positive sentiment (+0.44)","High buzz: 5 articles today","AI / Tech sector bullish (+0.22)"],"recent_headlines":["Will Applied Materials (AMAT) Beat Estimates Again in Its Next Earnings Report?","Is Applied Materials (AMAT) Stock Outpacing Its Computer and Technology Peers This Year?"]},{"ticker":"SMCI","tier":"HIDDEN GEM","geo_adjustment":0.0,"signal_adjustment":0.0,"signal_tags":[],"composite_score":0.3642,"sentiment_score":0.7599,"volume_score":0.0207,"sector":"AI / Tech","mention_count":5,"reasons":["Low coverage (5 articles) — signal before crowd notices","Very strong positive sentiment (+0.76)","High buzz: 5 articles today","AI / Tech sector bullish (+0.22)"],"recent_headlines":["Assessing Super Micro Computer (SMCI) Valuation After A Recent Shift In Share Price Trends","Super Micro Computer Q3 Earnings Call Highlights"]},{"ticker":"SWKS","tier":"HIDDEN GEM","geo_adjustment":0.0,"signal_adjustment":0.0,"signal_tags":[],"composite_score":0.349,"sentiment_score":0.7221,"volume_score":0.0207,"sector":"AI / Tech","mention_count":5,"reasons":["Low coverage (5 articles) — signal before crowd notices","Very strong positive sentiment (+0.72)","High buzz: 5 articles today","AI / Tech sector bullish (+0.22)"],"recent_headlines":["Skyworks Solutions Q2 Earnings Call Highlights","Skyworks (SWKS) Q2 2026 Earnings Transcript"]},{"ticker":"DASH","tier":"HIDDEN GEM","geo_adjustment":0.0,"signal_adjustment":0.0,"signal_tags":[],"composite_score":0.315,"sentiment_score":0.749,"volume_score":0.0207,"sector":"Consumer Tech","mention_count":5,"reasons":["Low coverage (5 articles) — signal before crowd notices","Very strong positive sentiment (+0.75)","High buzz: 5 articles today","Strong market-wide bullish tailwind"],"recent_headlines":["DoorDash AI And SNAP Expansion Deepen Grocery Presence And Investor Story","Trump sues JPMorgan for $5B! Ledger prepares for $4B IPO! “Crypto Adoption is no longer reversible” says PWC!"]},{"ticker":"DOMO","tier":"HIDDEN GEM","geo_adjustment":0.0,"signal_adjustment":0.0,"signal_tags":[],"composite_score":0.295,"sentiment_score":0.5398,"volume_score":0.0207,"sector":"SaaS","mention_count":5,"reasons":["Low coverage (5 articles) — signal before crowd notices","Very strong positive sentiment (+0.54)","High buzz: 5 articles today","SaaS sector bullish (+0.32)"],"recent_headlines":["Domo Appoints Ben Schein as Chief AI and Analytics Officer","Domo and Formula 1 Driver Alex Albon Kick Off 2026 Season Showcasing How AI and Data Drive Elite Performance"]},{"ticker":"TOST","tier":"HIDDEN GEM","geo_adjustment":0.0,"signal_adjustment":0.0,"signal_tags":[],"composite_score":0.2699,"sentiment_score":0.477,"volume_score":0.0207,"sector":"SaaS","mention_count":5,"reasons":["Low coverage (5 articles) — signal before crowd notices","Very strong positive sentiment (+0.48)","High buzz: 5 articles today","SaaS sector bullish (+0.32)"],"recent_headlines":["Toast Announces Participation at the J.P. Morgan Global Technology, Media and Communications Conference","Why Toast, Inc. (TOST) Could Be a Surprise Winner in Software"]},{"ticker":"AI","tier":"STRONG BUY","geo_adjustment":0.0,"signal_adjustment":0.2,"signal_tags":["✅ Earnings beat","❌ Earnings miss","🤝 M&A activity","💰 Buyback/dividend"],"composite_score":0.6528,"sentiment_score":0.3179,"volume_score":1.0,"sector":"AI / Tech","mention_count":241,"reasons":["Very strong positive sentiment (+0.32)","High buzz: 241 articles today","AI / Tech sector bullish (+0.22)","Positive influencer signal detected"],"recent_headlines":["Prediction: Sandisk Stock Is Going to $4,000 in 1 Year","Microsoft Finds Just 13% of Firms Reward AI-Driven Workplace Reinvention"]},{"ticker":"HII","tier":"STRONG BUY","geo_adjustment":0.211,"signal_adjustment":0.18,"signal_tags":["✅ Earnings beat"],"composite_score":0.6437,"sentiment_score":0.5386,"volume_score":0.029,"sector":"Defense","mention_count":7,"reasons":["Very strong positive sentiment (+0.54)","High buzz: 7 articles today","Strong market-wide bullish tailwind","✅ Earnings beat"],"recent_headlines":["HII Q1 Earnings Surpass Estimates, Revenues Increase Y/Y","A Look At Huntington Ingalls (HII) Valuation After Q1 Earnings Beat And Backlog Growth"]},{"ticker":"PYPL","tier":"STRONG BUY","geo_adjustment":0.0,"signal_adjustment":0.18,"signal_tags":["✅ Earnings beat"],"composite_score":0.5061,"sentiment_score":0.6146,"volume_score":0.029,"sector":"Fintech","mention_count":7,"reasons":["Very strong positive sentiment (+0.61)","High buzz: 7 articles today","Fintech sector bullish (+0.31)","Strong market-wide bullish tailwind"],"recent_headlines":["Can PayPal’s AI Reset And Reorganization Revive Long Term Growth Potential","PayPal Q1 Earnings Call Highlights"]},{"ticker":"DOCN","tier":"STRONG BUY","geo_adjustment":0.0,"signal_adjustment":0.18,"signal_tags":["✅ Earnings beat"],"composite_score":0.4788,"sentiment_score":0.5467,"volume_score":0.0249,"sector":"SaaS","mention_count":6,"reasons":["Very strong positive sentiment (+0.55)","High buzz: 6 articles today","SaaS sector bullish (+0.32)","Strong market-wide bullish tailwind"],"recent_headlines":["DigitalOcean (DOCN) Hits All-Time High on Stellar Revenues, Upbeat Q2","Update: DigitalOcean Shares Jump After Q1 Tops Estimates, 2026 Guidance Raised"]},{"ticker":"RPD","tier":"STRONG BUY","geo_adjustment":0.0,"signal_adjustment":0.3,"signal_tags":["✅ Earnings beat","🤝 M&A activity"],"composite_score":0.468,"sentiment_score":0.2288,"volume_score":0.0249,"sector":"Cybersecurity","mention_count":6,"reasons":["Positive news sentiment (+0.23)","High buzz: 6 articles today","Cybersecurity sector bullish (+0.30)","Strong market-wide bullish tailwind"],"recent_headlines":["Rapid7 Q1 Earnings Call Highlights","Rapid7 (RPD) Q1 Earnings: Taking a Look at Key Metrics Versus Estimates"]},{"ticker":"FISV","tier":"STRONG BUY","geo_adjustment":0.0,"signal_adjustment":0.18,"signal_tags":["✅ Earnings beat"],"composite_score":0.392,"sentiment_score":0.332,"volume_score":0.0249,"sector":"Fintech","mention_count":6,"reasons":["Very strong positive sentiment (+0.33)","High buzz: 6 articles today","Fintech sector bullish (+0.31)","Strong market-wide bullish tailwind"],"recent_headlines":["Fiserv (FISV) Is Down 7.0% After Softer Q1 Earnings Amid New Small-Business Platform Rollout","FISV Q1 Earnings Beat Estimates on Tax Benefits, Revenues Miss"]},{"ticker":"ESTC","tier":"STRONG BUY","geo_adjustment":0.0,"signal_adjustment":0.0,"signal_tags":[],"composite_score":0.3317,"sentiment_score":0.6212,"volume_score":0.0373,"sector":"SaaS","mention_count":9,"reasons":["Very strong positive sentiment (+0.62)","High buzz: 9 articles today","SaaS sector bullish (+0.32)","Strong market-wide bullish tailwind"],"recent_headlines":["Elastic (ESTC) Is Up 5.9% After Deeper Google Air-Gapped AI Tie-Up And GEOINT Push – Has The Bull Case Changed?","Is Elastic N.V. (ESTC) A Good Stock To Buy Now?"]},{"ticker":"IONQ","tier":"STRONG BUY","geo_adjustment":0.0,"signal_adjustment":0.12,"signal_tags":["🤝 M&A activity"],"composite_score":0.3314,"sentiment_score":0.3755,"volume_score":0.0249,"sector":"AI / Tech","mention_count":6,"reasons":["Very strong positive sentiment (+0.38)","High buzz: 6 articles today","AI / Tech sector bullish (+0.22)","Strong market-wide bullish tailwind"],"recent_headlines":["IonQ (IONQ) Reports Q1: Everything You Need To Know Ahead Of Earnings","Hold On Tight! Quantum Computing Leader IonQ Is About to Rocket Higher"]},{"ticker":"CRWD","tier":"STRONG BUY","geo_adjustment":0.0,"signal_adjustment":0.0,"signal_tags":[],"composite_score":0.284,"sentiment_score":0.5163,"volume_score":0.029,"sector":"Cybersecurity","mention_count":7,"reasons":["Very strong positive sentiment (+0.52)","High buzz: 7 articles today","Cybersecurity sector bullish (+0.30)","Strong market-wide bullish tailwind"],"recent_headlines":["CrowdStrike Gartner Leader Status And QuiltWorks Expansion Deepen AI Security Role","CrowdStrike Promotes Amanda Adams to SVP of Global Alliances"]}],"geo_signals":{"Iran / Middle East Conflict":{"article_count":99,"avg_sentiment":-0.2033,"sentiment_label":"bearish","risk_level":"HIGH","active":true,"summary":"Middle East conflict drives defense spending and oil prices; disrupts shipping and supply chains.","bullish_sectors":["Defense","Energy / Commodities"],"bearish_sectors":["Consumer Tech","SaaS","Fintech"],"bullish_tickers":["LMT","RTX","NOC","GD","KTOS","HII","GLD","USO"],"bearish_tickers":["AMZN","SHOP","UBER"],"sample_headlines":[{"title":"Trump and his oil-and-coal oligarchy should face sanctions for their war on the environment | Alexander Hurst","source":"The Guardian — Business","sentiment":"bearish"},{"title":"New threat to Labour spending plans as UK long-term borrowing costs hit highest level since 1998","source":"The Guardian — Business","sentiment":"bearish"},{"title":"Totally grounded? How the jet fuel crisis could change our holidays – and world history","source":"The Guardian — Business","sentiment":"bearish"}]},"Russia / Ukraine War":{"article_count":38,"avg_sentiment":0.2031,"sentiment_label":"bullish","risk_level":"HIGH","active":true,"summary":"Ongoing war sustains elevated defense budgets; European energy crisis supports commodity prices.","bullish_sectors":["Defense","Energy / Commodities"],"bearish_sectors":["Macro / Fed"],"bullish_tickers":["LMT","RTX","NOC","GD","LDOS","GLD","TLT"],"bearish_tickers":["SPY","QQQ"],"sample_headlines":[{"title":"Trump and his oil-and-coal oligarchy should face sanctions for their war on the environment | Alexander Hurst","source":"The Guardian — Business","sentiment":"bearish"},{"title":"HSBC Upgrades International Business Machines Corporation (IBM) on Quantum Business Valuation","source":"Yahoo Finance — Quantum","sentiment":"bullish"},{"title":"Zelenskyy slams Russia as strikes kill 22 in Ukraine before announced ceasefire","source":"NPR — World","sentiment":"bearish"}]},"China / Taiwan Tensions":{"article_count":170,"avg_sentiment":0.2086,"sentiment_label":"bullish","risk_level":"HIGH","active":true,"summary":"Taiwan tensions threaten semiconductor supply chains; boosts defense and domestic chip manufacturing.","bullish_sectors":["Defense","Energy / Commodities"],"bearish_sectors":["AI / Tech","SaaS"],"bullish_tickers":["LMT","RTX","AXON","KTOS","AMAT","LRCX"],"bearish_tickers":["TSM","NVDA","AMD","AAPL","ASML"],"sample_headlines":[{"title":"New threat to Labour spending plans as UK long-term borrowing costs hit highest level since 1998","source":"The Guardian — Business","sentiment":"bearish"},{"title":"Most Manchester United players to earn 25% rise in salary after Champions League qualification","source":"The Guardian — Business","sentiment":"bullish"},{"title":"New free financial advice plan aims to help Britons build savings","source":"The Guardian — Business","sentiment":"bullish"}]},"US-China Trade War":{"article_count":2,"avg_sentiment":0.3548,"sentiment_label":"bullish","risk_level":"MEDIUM","active":true,"summary":"Trade restrictions push reshoring of chip manufacturing; pressures US-listed Chinese tech stocks.","bullish_sectors":["Defense","AI / Tech"],"bearish_sectors":["Consumer Tech"],"bullish_tickers":["INTC","AMAT","LRCX","KLAC","GD"],"bearish_tickers":["BIDU","BABA","JD","NVDA","QCOM"],"sample_headlines":[{"title":"Datang Mobile, KPN, NEC and Wilus are Latest Licensors to Join Sisvel POS Patent Pool as Incentive Deadline Nears","source":"Yahoo Finance — Global Tech","sentiment":"bullish"},{"title":"Trump asks Supreme Court to pause TikTok ban","source":"MarketWatch — Markets","sentiment":"neutral"}]},"North Korea / Asia-Pacific":{"article_count":5,"avg_sentiment":-0.11,"sentiment_label":"neutral","risk_level":"MEDIUM","active":true,"summary":"Missile tests elevate Asia-Pacific defense spending and US forward deployment budgets.","bullish_sectors":["Defense"],"bearish_sectors":[],"bullish_tickers":["LMT","NOC","RTX","GD","HII"],"bearish_tickers":[],"sample_headlines":[{"title":"How Solana Exchange Drift Plans to Repay Users After $295 Million Crypto Hack","source":"Decrypt — Crypto","sentiment":"bearish"},{"title":"Dressed for succession: What Kim Ju Ae's outfits tell us about North Korea","source":"BBC — World News","sentiment":"bullish"},{"title":"Ripple to Share North Korean Threat Intelligence With Crypto Industry","source":"Decrypt — Crypto","sentiment":"neutral"}]},"Global Recession / Credit Risk":{"article_count":3,"avg_sentiment":-0.8704,"sentiment_label":"bearish","risk_level":"HIGH","active":true,"summary":"Recession signals raise credit risk for growth/unprofitable names; safe havens like gold and bonds benefit.","bullish_sectors":["Macro / Fed"],"bearish_sectors":["Fintech","Consumer Tech","SaaS","EV / Auto"],"bullish_tickers":["GLD","TLT"],"bearish_tickers":["AFRM","UPST","RIVN","LCID","SOFI"],"sample_headlines":[{"title":"Data suggests 'hiring recession' may be behind us — but the Iran war poses job market risks","source":"CNBC — Top News","sentiment":"bearish"},{"title":"JPMorgan's Jamie Dimon issued vague credit recession warning, but the bond market has more pressing issues","source":"CNBC — Finance","sentiment":"bearish"},{"title":"Reform UK’s immigration policies are a significant risk to the UK economy | Sushil Wadhwani","source":"The Guardian — Business","sentiment":"bearish"}]},"Energy Crisis / Oil Shock":{"article_count":7,"avg_sentiment":-0.2552,"sentiment_label":"bearish","risk_level":"MEDIUM","active":true,"summary":"Energy shocks boost nuclear and commodity stocks; dampen EV adoption and consumer spending.","bullish_sectors":["Energy / Commodities","Defense"],"bearish_sectors":["Consumer Tech","EV / Auto"],"bullish_tickers":["CEG","VST","SMR","NNE","GLD"],"bearish_tickers":["RIVN","LCID","CHPT"],"sample_headlines":[{"title":"Nigerian refinery accused of sacking union members is key to UK plan to tackle jet fuel shortage","source":"The Guardian — World","sentiment":"bearish"},{"title":"RBA governor announces cash rate hike and warns more interest rate rises could come – video","source":"The Guardian — Business","sentiment":"bullish"},{"title":"Oil Prices Fall as Pentagon Downplays Latest Iranian Missile Attacks","source":"Yahoo Finance — Macro","sentiment":"bearish"}]}},"sector_sentiment":{"AI / Tech":{"article_count":675,"avg_sentiment":0.2241,"sentiment_label":"bullish"},"SaaS":{"article_count":44,"avg_sentiment":0.3185,"sentiment_label":"bullish"},"Defense":{"article_count":76,"avg_sentiment":0.0992,"sentiment_label":"neutral"},"Crypto":{"article_count":178,"avg_sentiment":0.2055,"sentiment_label":"bullish"},"Robotics":{"article_count":15,"avg_sentiment":0.138,"sentiment_label":"neutral"},"Cybersecurity":{"article_count":57,"avg_sentiment":0.3003,"sentiment_label":"bullish"},"Fintech":{"article_count":37,"avg_sentiment":0.3138,"sentiment_label":"bullish"},"Space":{"article_count":31,"avg_sentiment":0.4783,"sentiment_label":"bullish"},"EV / Auto":{"article_count":399,"avg_sentiment":0.3006,"sentiment_label":"bullish"},"HealthTech":{"article_count":2,"avg_sentiment":0.2525,"sentiment_label":"bullish"},"Energy / Commodities":{"article_count":127,"avg_sentiment":0.1247,"sentiment_label":"neutral"},"Macro / Fed":{"article_count":81,"avg_sentiment":0.1392,"sentiment_label":"neutral"}},"influencer_signals":{"Trump":{"article_count":87,"avg_sentiment":0.0312,"sentiment_label":"neutral","key_headlines":[{"title":"Dow Jones Futures Rise; Trump Hits Hormuz Pause; AMD, Lumentum, Arista Lead AI Earnings Movers","link":"https://finance.yahoo.com/m/69a7ddbb-994e-3c97-a841-d6d030026ca3/dow-jones-futures-rise%3B-trump.html?.tsrc=rss","sentiment":"bullish"},{"title":"Review & Preview: Earnings in Focus","link":"https://finance.yahoo.com/m/e70b3315-25e3-39f2-ac0c-ac02192752d4/review-%26-preview%3A-earnings-in.html?.tsrc=rss","sentiment":"bullish"},{"title":"David Sacks Says AI Could Drive 75% Of US GDP Growth As Morgan Stanley Sees Big Tech AI Capex Surging Past $800 Billion In 2026","link":"https://finance.yahoo.com/economy/articles/david-sacks-says-ai-could-220110765.html?.tsrc=rss","sentiment":"bullish"},{"title":"Here Are Tuesday’s Top Wall Street Analyst Research Calls: Applied Materials, Devon Energy, GoDaddy, Home Depot, Lam Research, Lowe’s, Roblox, Tractor Supply, Ulta Beauty, and More","link":"https://247wallst.com/investing/2026/05/05/here-are-tuesdays-top-wall-street-analyst-research-calls-applied-materials-devon-energy-godaddy-home-depot-lam-research-lowes-roblox-tractor-supply-ulta-beauty-and-more/?.tsrc=rss","sentiment":"bullish"},{"title":"Tinder Returns to New User Registration Growth in Sign of Turnaround","link":"https://finance.yahoo.com/markets/stocks/articles/tinder-returns-user-registration-growth-201225315.html?.tsrc=rss","sentiment":"bullish"}]},"Musk":{"article_count":26,"avg_sentiment":0.1762,"sentiment_label":"bullish","key_headlines":[{"title":"Intel Joined Elon Musk's Terafab. Will This Catalyst Cement the Stock's Turnaround?","link":"https://www.fool.com/investing/2026/05/05/intel-joined-elon-musks-terafab/?.tsrc=rss","sentiment":"bullish"},{"title":"Tesla FSD hits major speedbump with EU regulators","link":"https://www.thestreet.com/automotive/tesla-fsd-hits-major-speedbump-with-eu-regulators?.tsrc=rss","sentiment":"bullish"},{"title":"The Hackett Group Q1 Earnings Call Highlights","link":"https://www.marketbeat.com/instant-alerts/the-hackett-group-q1-earnings-call-highlights-2026-05-05/?utm_source=yahoofinance&utm_medium=yahoofinance&.tsrc=rss","sentiment":"bearish"},{"title":"SentinelOne (S) Partners with Silverfort on AI and Identity Security","link":"https://finance.yahoo.com/sectors/technology/articles/sentinelone-partners-silverfort-ai-identity-125843861.html?.tsrc=rss","sentiment":"bullish"},{"title":"SentinelOne (S) Valuation Check After Launch Of Wayfinder Frontier AI Security Services","link":"https://finance.yahoo.com/markets/stocks/articles/sentinelone-valuation-check-launch-wayfinder-071210417.html?.tsrc=rss","sentiment":"bullish"}]},"Cathie Wood":{"article_count":2,"avg_sentiment":0.148,"sentiment_label":"neutral","key_headlines":[{"title":"Cathie Wood sells $11.8 million in Nvidia-backed stock before earnings","link":"https://www.thestreet.com/investing/cathie-wood-sells-11-8-million-in-nvidia-backed-stock-before-earnings?.tsrc=rss","sentiment":"bullish"},{"title":"Cathie Wood Cashes In On Surging AMD Stock With Earnings Due","link":"https://www.investors.com/news/cathie-wood-ark-invest-amd-stock-earnings/?src=A00220&yptr=yahoo","sentiment":"neutral"}]},"Powell / Fed":{"article_count":50,"avg_sentiment":0.2225,"sentiment_label":"bullish","key_headlines":[{"title":"FedEx and ServiceNow expand strategic collaboration with new AI-powered supply chain solution","link":"https://finance.yahoo.com/sectors/technology/articles/fedex-servicenow-expand-strategic-collaboration-165900263.html?.tsrc=rss","sentiment":"bullish"},{"title":"BigBear.ai Builds Federal AI Backlog As Investors Weigh Volatile Returns","link":"https://finance.yahoo.com/markets/stocks/articles/bigbear-ai-builds-federal-ai-232601108.html?.tsrc=rss","sentiment":"bullish"},{"title":"After Pentagon Inks Deal With AI Firms, Buy These Under $20 Stocks","link":"https://247wallst.com/investing/2026/05/04/after-pentagon-inks-deal-with-ai-firms-buy-these-under-20-stocks/?.tsrc=rss","sentiment":"bullish"},{"title":"Workday (WDAY) Launches AI-Powered Personnel Action Request Agent to Modernize Federal HR Operations","link":"https://finance.yahoo.com/sectors/technology/articles/workday-wday-launches-ai-powered-141836316.html?.tsrc=rss","sentiment":"bullish"},{"title":"Astrada Raises Seed Round to Build the Data Layer for Autonomous Finance","link":"https://finance.yahoo.com/markets/stocks/articles/astrada-raises-seed-round-build-110000391.html?.tsrc=rss","sentiment":"neutral"}]},"Saylor / Bitcoin":{"article_count":41,"avg_sentiment":0.0846,"sentiment_label":"neutral","key_headlines":[{"title":"After Pentagon Inks Deal With AI Firms, Buy These Under $20 Stocks","link":"https://247wallst.com/investing/2026/05/04/after-pentagon-inks-deal-with-ai-firms-buy-these-under-20-stocks/?.tsrc=rss","sentiment":"bullish"},{"title":"Valiantys Named Atlassian Partner of the Year 2026 - Strategy Solutions & Services Delivery APAC","link":"https://finance.yahoo.com/sectors/technology/articles/valiantys-named-atlassian-partner-2026-160000551.html?.tsrc=rss","sentiment":"bullish"},{"title":"CrowdStrike Promotes Amanda Adams to SVP of Global Alliances","link":"https://finance.yahoo.com/sectors/technology/articles/crowdstrike-promotes-amanda-adams-svp-154100569.html?.tsrc=rss","sentiment":"bullish"},{"title":"Qualys Q1 Earnings Call Highlights","link":"https://www.marketbeat.com/instant-alerts/qualys-q1-earnings-call-highlights-2026-05-05/?utm_source=yahoofinance&utm_medium=yahoofinance&.tsrc=rss","sentiment":"bullish"},{"title":"Upstart Q1 Earnings Call Highlights","link":"https://www.marketbeat.com/instant-alerts/upstart-q1-earnings-call-highlights-2026-05-05/?utm_source=yahoofinance&utm_medium=yahoofinance&.tsrc=rss","sentiment":"bullish"}]}},"prices":{"META":{"price":604.96,"prev_close":610.462,"change":-5.502,"change_pct":-0.901,"day_high":614.34,"day_low":600.36,"week52_high":796.25,"week52_low":520.26,"currency":"USD","market_state":""},"NOW":{"price":92.01,"prev_close":91.97,"change":0.04,"change_pct":0.043,"day_high":92.888,"day_low":89.14,"week52_high":211.478,"week52_low":81.24,"currency":"USD","market_state":""},"AVGO":{"price":427.36,"prev_close":416.54,"change":10.82,"change_pct":2.598,"day_high":433.39,"day_low":419.35,"week52_high":433.39,"week52_low":198.43,"currency":"USD","market_state":""},"PINS":{"price":22.28,"prev_close":20.85,"change":1.43,"change_pct":6.859,"day_high":24.71,"day_low":22.065,"week52_high":39.93,"week52_low":13.84,"currency":"USD","market_state":""},"AMZN":{"price":273.55,"prev_close":272.07,"change":1.48,"change_pct":0.544,"day_high":278.56,"day_low":272.38,"week52_high":278.56,"week52_low":185.01,"currency":"USD","market_state":""},"RTX":{"price":172.87,"prev_close":172.9,"change":-0.03,"change_pct":-0.017,"day_high":174.15,"day_low":171.195,"week52_high":214.5,"week52_low":126.03,"currency":"USD","market_state":""},"SMCI":{"price":27.83,"prev_close":27.92,"change":-0.09,"change_pct":-0.322,"day_high":28.29,"day_low":27.42,"week52_high":62.36,"week52_low":19.48,"currency":"USD","market_state":""},"AMD":{"price":355.26,"prev_close":341.54,"change":13.72,"change_pct":4.017,"day_high":359.572,"day_low":344.88,"week52_high":362.79,"week52_low":96.88,"currency":"USD","market_state":""},"PYPL":{"price":46.49,"prev_close":50.39,"change":-3.9,"change_pct":-7.74,"day_high":46.715,"day_low":44.51,"week52_high":79.5,"week52_low":38.46,"currency":"USD","market_state":""},"CRWD":{"price":476.53,"prev_close":469.24,"change":7.29,"change_pct":1.554,"day_high":480.66,"day_low":466.0,"week52_high":566.9,"week52_low":342.72,"currency":"USD","market_state":""},"ASML":{"price":1442.92,"prev_close":1386.21,"change":56.71,"change_pct":4.091,"day_high":1454.8,"day_low":1414.54,"week52_high":1547.22,"week52_low":683.46,"currency":"USD","market_state":""},"IONQ":{"price":48.0,"prev_close":45.75,"change":2.25,"change_pct":4.918,"day_high":48.34,"day_low":44.79,"week52_high":84.64,"week52_low":25.89,"currency":"USD","market_state":""},"LITE":{"price":994.56,"prev_close":976.18,"change":18.38,"change_pct":1.883,"day_high":1021.0,"day_low":966.06,"week52_high":1021.0,"week52_low":60.38,"currency":"USD","market_state":""},"WDAY":{"price":128.875,"prev_close":127.89,"change":0.985,"change_pct":0.77,"day_high":128.97,"day_low":124.31,"week52_high":276.0,"week52_low":110.36,"currency":"USD","market_state":""},"MU":{"price":640.2,"prev_close":576.45,"change":63.75,"change_pct":11.059,"day_high":651.74,"day_low":605.47,"week52_high":651.74,"week52_low":80.2,"currency":"USD","market_state":""},"RGTI":{"price":18.27,"prev_close":17.7,"change":0.57,"change_pct":3.22,"day_high":18.47,"day_low":17.08,"week52_high":58.15,"week52_low":9.14,"currency":"USD","market_state":""},"LRCX":{"price":275.8,"prev_close":258.57,"change":17.23,"change_pct":6.664,"day_high":279.99,"day_low":266.87,"week52_high":279.99,"week52_low":72.91,"currency":"USD","market_state":""},"MSTR":{"price":186.9,"prev_close":183.8,"change":3.1,"change_pct":1.687,"day_high":190.41,"day_low":183.72,"week52_high":457.22,"week52_low":104.17,"currency":"USD","market_state":""},"NVDA":{"price":196.5,"prev_close":198.543,"change":-2.043,"change_pct":-1.029,"day_high":200.24,"day_low":196.03,"week52_high":216.83,"week52_low":112.28,"currency":"USD","market_state":""},"TSLA":{"price":389.37,"prev_close":392.565,"change":-3.195,"change_pct":-0.814,"day_high":402.09,"day_low":389.0,"week52_high":498.83,"week52_low":271.0,"currency":"USD","market_state":""},"PLTR":{"price":135.91,"prev_close":146.03,"change":-10.12,"change_pct":-6.93,"day_high":142.98,"day_low":134.73,"week52_high":207.52,"week52_low":107.0,"currency":"USD","market_state":""},"MSFT":{"price":411.38,"prev_close":413.62,"change":-2.24,"change_pct":-0.542,"day_high":416.78,"day_low":408.8,"week52_high":555.45,"week52_low":356.28,"currency":"USD","market_state":""},"GOOGL":{"price":388.43,"prev_close":383.25,"change":5.18,"change_pct":1.352,"day_high":392.82,"day_low":384.02,"week52_high":392.82,"week52_low":147.84,"currency":"USD","market_state":""},"ARM":{"price":208.84,"prev_close":203.26,"change":5.58,"change_pct":2.745,"day_high":214.33,"day_low":204.325,"week52_high":237.68,"week52_low":100.02,"currency":"USD","market_state":""},"ORCL":{"price":185.35,"prev_close":180.29,"change":5.06,"change_pct":2.807,"day_high":186.52,"day_low":179.0,"week52_high":345.72,"week52_low":134.57,"currency":"USD","market_state":""},"MARA":{"price":12.16,"prev_close":11.83,"change":0.33,"change_pct":2.79,"day_high":12.29,"day_low":11.78,"week52_high":23.45,"week52_low":6.66,"currency":"USD","market_state":""},"RIOT":{"price":20.35,"prev_close":18.68,"change":1.67,"change_pct":8.94,"day_high":20.42,"day_low":19.068,"week52_high":23.935,"week52_low":7.68,"currency":"USD","market_state":""},"IREN":{"price":54.74,"prev_close":49.489,"change":5.251,"change_pct":10.61,"day_high":56.13,"day_low":49.07,"week52_high":76.87,"week52_low":6.36,"currency":"USD","market_state":""},"CLSK":{"price":13.41,"prev_close":12.82,"change":0.59,"change_pct":4.602,"day_high":13.569,"day_low":13.0,"week52_high":23.61,"week52_low":7.91,"currency":"USD","market_state":""},"WULF":{"price":23.49,"prev_close":22.29,"change":1.2,"change_pct":5.384,"day_high":23.7,"day_low":22.582,"week52_high":23.7,"week52_low":2.89,"currency":"USD","market_state":""},"CIFR":{"price":22.1,"prev_close":17.89,"change":4.21,"change_pct":23.533,"day_high":22.165,"day_low":17.65,"week52_high":25.52,"week52_low":2.95,"currency":"USD","market_state":""},"BITF":{"price":1.98,"prev_close":1.98,"change":0.0,"change_pct":0.0,"day_high":1.99,"day_low":1.84,"week52_high":6.6,"week52_low":0.7,"currency":"USD","market_state":""},"HUT":{"price":80.51,"prev_close":78.08,"change":2.43,"change_pct":3.112,"day_high":80.76,"day_low":77.002,"week52_high":83.18,"week52_low":12.45,"currency":"USD","market_state":""},"RKLB":{"price":78.76,"prev_close":80.31,"change":-1.55,"change_pct":-1.93,"day_high":83.0,"day_low":76.57,"week52_high":99.58,"week52_low":20.232,"currency":"USD","market_state":""},"ASTS":{"price":63.87,"prev_close":68.41,"change":-4.54,"change_pct":-6.636,"day_high":68.85,"day_low":63.43,"week52_high":129.89,"week52_low":22.47,"currency":"USD","market_state":""},"QBTS":{"price":21.54,"prev_close":20.92,"change":0.62,"change_pct":2.964,"day_high":21.7,"day_low":20.36,"week52_high":46.75,"week52_low":6.82,"currency":"USD","market_state":""},"QUBT":{"price":9.56,"prev_close":9.508,"change":0.052,"change_pct":0.547,"day_high":9.615,"day_low":9.15,"week52_high":25.84,"week52_low":6.18,"currency":"USD","market_state":""},"ARQQ":{"price":14.65,"prev_close":14.42,"change":0.23,"change_pct":1.595,"day_high":14.83,"day_low":13.953,"week52_high":62.0,"week52_low":11.52,"currency":"USD","market_state":""},"ISRG":{"price":451.38,"prev_close":452.35,"change":-0.97,"change_pct":-0.214,"day_high":458.26,"day_low":441.98,"week52_high":603.88,"week52_low":427.84,"currency":"USD","market_state":""},"PANW":{"price":183.98,"prev_close":184.56,"change":-0.58,"change_pct":-0.314,"day_high":186.24,"day_low":180.52,"week52_high":223.61,"week52_low":139.57,"currency":"USD","market_state":""},"AXON":{"price":380.6,"prev_close":393.75,"change":-13.15,"change_pct":-3.34,"day_high":396.84,"day_low":370.45,"week52_high":885.92,"week52_low":339.01,"currency":"USD","market_state":""},"KTOS":{"price":59.31,"prev_close":61.93,"change":-2.62,"change_pct":-4.231,"day_high":62.775,"day_low":58.01,"week52_high":134.0,"week52_low":32.85,"currency":"USD","market_state":""},"APP":{"price":478.11,"prev_close":475.0,"change":3.11,"change_pct":0.655,"day_high":483.29,"day_low":469.62,"week52_high":745.61,"week52_low":292.87,"currency":"USD","market_state":""},"BRZE":{"price":24.33,"prev_close":24.17,"change":0.16,"change_pct":0.662,"day_high":24.55,"day_low":23.675,"week52_high":37.67,"week52_low":15.26,"currency":"USD","market_state":""},"DDOG":{"price":145.73,"prev_close":146.69,"change":-0.96,"change_pct":-0.654,"day_high":150.0,"day_low":144.5,"week52_high":201.69,"week52_low":98.01,"currency":"USD","market_state":""},"SNOW":{"price":141.71,"prev_close":144.21,"change":-2.5,"change_pct":-1.734,"day_high":146.895,"day_low":139.42,"week52_high":280.67,"week52_low":118.3,"currency":"USD","market_state":""},"OKTA":{"price":77.75,"prev_close":77.24,"change":0.51,"change_pct":0.66,"day_high":78.44,"day_low":76.38,"week52_high":127.567,"week52_low":62.66,"currency":"USD","market_state":""},"HOOD":{"price":77.03,"prev_close":76.55,"change":0.48,"change_pct":0.627,"day_high":78.75,"day_low":76.49,"week52_high":153.86,"week52_low":48.32,"currency":"USD","market_state":""},"SOFI":{"price":16.02,"prev_close":16.2,"change":-0.18,"change_pct":-1.111,"day_high":16.31,"day_low":15.94,"week52_high":32.73,"week52_low":12.56,"currency":"USD","market_state":""},"AFRM":{"price":66.81,"prev_close":67.08,"change":-0.27,"change_pct":-0.403,"day_high":68.185,"day_low":66.2,"week52_high":100.0,"week52_low":42.095,"currency":"USD","market_state":""},"NU":{"price":14.25,"prev_close":14.16,"change":0.09,"change_pct":0.636,"day_high":14.44,"day_low":14.17,"week52_high":18.98,"week52_low":11.71,"currency":"USD","market_state":""},"UPST":{"price":31.17,"prev_close":32.08,"change":-0.91,"change_pct":-2.837,"day_high":32.54,"day_low":31.03,"week52_high":87.3,"week52_low":23.965,"currency":"USD","market_state":""},"RIVN":{"price":14.6,"prev_close":14.51,"change":0.09,"change_pct":0.62,"day_high":15.065,"day_low":14.48,"week52_high":22.69,"week52_low":11.57,"currency":"USD","market_state":""},"NIO":{"price":5.9,"prev_close":6.07,"change":-0.17,"change_pct":-2.801,"day_high":6.19,"day_low":5.9,"week52_high":8.02,"week52_low":3.34,"currency":"USD","market_state":""},"LCID":{"price":6.25,"prev_close":6.69,"change":-0.44,"change_pct":-6.577,"day_high":6.7,"day_low":6.183,"week52_high":33.7,"week52_low":5.62,"currency":"USD","market_state":""},"CEG":{"price":320.42,"prev_close":321.05,"change":-0.63,"change_pct":-0.196,"day_high":324.99,"day_low":318.58,"week52_high":412.7,"week52_low":243.3,"currency":"USD","market_state":""},"VST":{"price":160.38,"prev_close":160.85,"change":-0.47,"change_pct":-0.292,"day_high":163.8,"day_low":159.8,"week52_high":219.82,"week52_low":133.73,"currency":"USD","market_state":""},"SMR":{"price":11.87,"prev_close":12.18,"change":-0.31,"change_pct":-2.545,"day_high":12.39,"day_low":11.58,"week52_high":57.42,"week52_low":8.85,"currency":"USD","market_state":""},"NNE":{"price":22.77,"prev_close":23.32,"change":-0.55,"change_pct":-2.358,"day_high":23.555,"day_low":22.1,"week52_high":60.87,"week52_low":18.93,"currency":"USD","market_state":""},"AMAT":{"price":410.82,"prev_close":391.38,"change":19.44,"change_pct":4.967,"day_high":414.5,"day_low":400.25,"week52_high":420.5,"week52_low":151.51,"currency":"USD","market_state":""},"SWKS":{"price":72.56,"prev_close":68.85,"change":3.71,"change_pct":5.389,"day_high":72.81,"day_low":68.71,"week52_high":90.9,"week52_low":51.93,"currency":"USD","market_state":""},"DASH":{"price":166.14,"prev_close":172.57,"change":-6.43,"change_pct":-3.726,"day_high":174.23,"day_low":164.575,"week52_high":285.5,"week52_low":143.3,"currency":"USD","market_state":""},"DOMO":{"price":3.87,"prev_close":3.89,"change":-0.02,"change_pct":-0.514,"day_high":3.958,"day_low":3.79,"week52_high":18.489,"week52_low":2.39,"currency":"USD","market_state":""},"TOST":{"price":28.54,"prev_close":29.41,"change":-0.87,"change_pct":-2.958,"day_high":29.46,"day_low":28.125,"week52_high":49.66,"week52_low":24.35,"currency":"USD","market_state":""},"AI":{"price":9.41,"prev_close":9.22,"change":0.19,"change_pct":2.061,"day_high":9.45,"day_low":9.05,"week52_high":30.24,"week52_low":7.675,"currency":"USD","market_state":""},"HII":{"price":326.13,"prev_close":363.37,"change":-37.24,"change_pct":-10.249,"day_high":339.41,"day_low":311.53,"week52_high":460.0,"week52_low":215.05,"currency":"USD","market_state":""},"DOCN":{"price":152.77,"prev_close":108.81,"change":43.96,"change_pct":40.401,"day_high":153.47,"day_low":129.51,"week52_high":153.47,"week52_low":25.56,"currency":"USD","market_state":""},"RPD":{"price":6.68,"prev_close":6.49,"change":0.19,"change_pct":2.928,"day_high":6.855,"day_low":6.501,"week52_high":27.1,"week52_low":4.97,"currency":"USD","market_state":""},"FISV":{"price":57.28,"prev_close":62.81,"change":-5.53,"change_pct":-8.804,"day_high":59.54,"day_low":56.495,"week52_high":191.91,"week52_low":52.91,"currency":"USD","market_state":""},"ESTC":{"price":50.15,"prev_close":50.66,"change":-0.51,"change_pct":-1.007,"day_high":52.0,"day_low":49.73,"week52_high":96.07,"week52_low":42.05,"currency":"USD","market_state":""},"QLYS":{"price":92.14,"prev_close":92.49,"change":-0.35,"change_pct":-0.378,"day_high":92.96,"day_low":89.56,"week52_high":155.47,"week52_low":74.51,"currency":"USD","market_state":""},"MTCH":{"price":37.65,"prev_close":38.17,"change":-0.52,"change_pct":-1.362,"day_high":38.51,"day_low":37.05,"week52_high":39.2,"week52_low":26.8,"currency":"USD","market_state":""},"BAH":{"price":76.26,"prev_close":77.84,"change":-1.58,"change_pct":-2.03,"day_high":78.84,"day_low":75.5,"week52_high":130.91,"week52_low":73.93,"currency":"USD","market_state":""}},"top_bullish":[{"title":"ACM Research (ACMR) Valuation Check After Strong Q1 Momentum And New PECVD System Shipment","link":"https://finance.yahoo.com/markets/stocks/articles/acm-research-acmr-valuation-check-112330006.html?.tsrc=rss","source":"Yahoo Finance — Robotics","score":0.9643,"tickers":["ACMR"]},{"title":"Skyworks Solutions (NASDAQ:SWKS) Reports Upbeat Q1 But Inventory Levels Increase","link":"https://finance.yahoo.com/markets/stocks/articles/skyworks-solutions-nasdaq-swks-reports-200939101.html?.tsrc=rss","source":"Yahoo Finance — Memory & Storage","score":0.9631,"tickers":["SWKS"]},{"title":"High Insider Ownership Growth Stocks To Watch In May 2026","link":"https://finance.yahoo.com/markets/stocks/articles/high-insider-ownership-growth-stocks-173543036.html?.tsrc=rss","source":"Yahoo Finance — SaaS Growth","score":0.9618,"tickers":[]}],"top_bearish":[{"title":"US military kills three people in boat strike in eastern Pacific","link":"https://www.theguardian.com/us-news/2026/may/05/us-military-vessel-strike","source":"The Guardian — World","score":-0.9612,"tickers":[]},{"title":"New threat to Labour spending plans as UK long-term borrowing costs hit highest level since 1998","link":"https://www.theguardian.com/business/2026/may/05/uk-borrowing-costs-bond-yields-gilts-rachel-reeves","source":"The Guardian — Business","score":-0.9628,"tickers":[]},{"title":"Shock in India after man takes remains of his sister to bank to prove her death","link":"https://www.theguardian.com/world/2026/apr/30/india-man-body-corpse-dead-sister-bank","source":"The Guardian — World","score":-0.967,"tickers":[]}]};
+
+// ── Telegram WebApp setup ─────────────────────────────────────────────────────
+const twa = window.Telegram?.WebApp;
+if (twa) {
+  twa.ready();
+  twa.expand();
+  if (twa.colorScheme === 'dark') {
+    document.documentElement.classList.add('dark');
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const el = id => document.getElementById(id);
+const fmtPrice = p => p != null ? `$${Number(p).toFixed(2)}` : '—';
+const fmtChg   = c => {
+  if (c == null) return {str:'', cls:'flat'};
+  const s = c >= 0 ? '+' : '';
+  return {str:`${s}${Number(c).toFixed(2)}%`, cls: c > 0.3 ? 'up' : c < -0.3 ? 'dn' : 'flat'};
+};
+const tierTag = t => {
+  const m = {'STRONG BUY':'tag-tier-sb 🔥 Strong Buy','BUY':'tag-tier-b ✅ Buy','HIDDEN GEM':'tag-tier-hg 💎 Hidden Gem'};
+  return m[t] || 'tag-tier-b';
+};
+const riskEmoji = r => ({'HIGH':'🔴','MEDIUM':'🟡','LOW':'🟢'})[r] || '⚪';
+const scoreBarW = s => Math.max(0, Math.min(100, (s / 0.5) * 100)).toFixed(0);
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(pageId, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tbtab').forEach(b => b.classList.remove('active'));
+  el(pageId).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── Buy at Open ───────────────────────────────────────────────────────────────
+function renderBao() {
+  const bao = D.buy_at_open || [];
+  if (!bao.length) {
+    el('bao-lead').innerHTML = '<div style="text-align:center;color:var(--faint);padding:20px;font-size:12px">No high-conviction picks today.<br>Run a data refresh.</div>';
+    el('bao-subs').style.display = 'none';
+    return;
+  }
+
+  const [lead, ...rest] = bao;
+  const lChg = fmtChg(lead.change_pct);
+  const sigTags = (lead.signal_tags || []).slice(0,3).map(t =>
+    `<span class="tag tag-catalyst">${t}</span>`
+  ).join('');
+  const reasonsHtml = (lead.rationale || lead.reasons || []).slice(0,4).map(r =>
+    `<li>${r}</li>`
+  ).join('');
+  const under50 = lead.price != null && lead.price < 50;
+  const [tCls, tLbl] = tierTag(lead.tier).split(' ').reduce((a,v,i) => i===0?[v,a[1]]:[a[0],a[1]+' '+v], ['','']);
+
+  el('bao-lead').innerHTML = `
+    <div class="bao-card">
+      <div class="bao-rank">#1 · Top Pick Today</div>
+      <div class="bao-ticker">${lead.ticker}</div>
+      <div class="bao-price-row">
+        <span class="bao-price">${fmtPrice(lead.price)}</span>
+        <span class="bao-chg ${lChg.cls}">${lChg.str}</span>
+      </div>
+      <div class="score-row">
+        <div class="score-bar"><div class="score-fill" style="width:${scoreBarW(lead.buy_score)}%"></div></div>
+        <span class="score-lbl">Score ${lead.buy_score?.toFixed(3)}</span>
+      </div>
+      <div class="tags">
+        <span class="tag ${tCls}">${tLbl.trim()}</span>
+        <span class="tag tag-sector">${lead.sector}</span>
+        ${under50 ? '<span class="tag tag-price">Under $50</span>' : ''}
+        ${sigTags}
+      </div>
+      <ul class="reasons">${reasonsHtml}</ul>
+    </div>`;
+
+  // Sub-picks
+  el('bao-subs').innerHTML = rest.slice(0,4).map((p, i) => {
+    const chg = fmtChg(p.change_pct);
+    const [cls, lbl] = tierTag(p.tier).split(' ').reduce((a,v,i) => i===0?[v,a[1]]:[a[0],a[1]+' '+v], ['','']);
+    const top1 = (p.rationale||p.reasons||[])[0] || '';
+    return `
+      <div class="pick-row">
+        <div class="pick-rk">#${i+2}</div>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="pick-sym">${p.ticker}</span>
+            <span class="tag ${cls}" style="font-size:8px">${lbl.trim()}</span>
+          </div>
+          ${top1 ? `<div class="pick-reason">${top1}</div>` : ''}
+        </div>
+        <div class="pick-right">
+          <div class="pick-price">${fmtPrice(p.price)}</div>
+          <div class="pick-chg ${chg.cls}">${chg.str}</div>
+          <div class="pick-score">${p.buy_score?.toFixed(3)}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── Gems ──────────────────────────────────────────────────────────────────────
+function renderGems() {
+  const gems = (D.recommendations || []).filter(r => r.tier === 'HIDDEN GEM');
+  if (!gems.length) {
+    el('gems-list').innerHTML = '<div style="text-align:center;color:var(--faint);padding:16px;font-size:12px">No Hidden Gems detected today.</div>';
+    return;
+  }
+  const prices = D.prices || {};
+  el('gems-list').innerHTML = gems.slice(0,6).map(g => {
+    const pd  = prices[g.ticker] || {};
+    const chg = fmtChg(pd.change_pct);
+    const reasons = (g.reasons || []).slice(0,2).map(r => `<li>${r}</li>`).join('');
+    return `
+      <div class="gem-card">
+        <div class="gem-ticker">💎 ${g.ticker}</div>
+        <div class="gem-meta">
+          ${fmtPrice(pd.price)} <span class="bao-chg ${chg.cls}">${chg.str}</span>
+          &nbsp;·&nbsp; Sentiment: ${g.sentiment_score > 0 ? '+' : ''}${g.sentiment_score?.toFixed(3)}
+          &nbsp;·&nbsp; ${g.mention_count} article${g.mention_count !== 1 ? 's' : ''}
+        </div>
+        <ul class="reasons">${reasons}</ul>
+      </div>`;
+  }).join('');
+}
+
+// ── Geo ───────────────────────────────────────────────────────────────────────
+function renderGeo() {
+  const geo = D.geo_signals || {};
+  const active = Object.entries(geo).filter(([,v]) => v.active);
+  if (!active.length) {
+    el('geo-list').innerHTML = '<div style="text-align:center;color:var(--faint);padding:16px;font-size:12px">No active geopolitical events today.</div>';
+    return;
+  }
+  const riskOrd = {HIGH:0,MEDIUM:1,LOW:2};
+  active.sort((a,b) => (riskOrd[a[1].risk_level]||2) - (riskOrd[b[1].risk_level]||2));
+  el('geo-list').innerHTML = active.map(([name, sig]) => {
+    const bullS = (sig.bullish_sectors||[]).slice(0,2).map(s=>`<span class="geo-bull">↑${s}</span>`).join('');
+    const bearS = (sig.bearish_sectors||[]).slice(0,2).map(s=>`<span class="geo-bear">↓${s}</span>`).join('');
+    const bullT = (sig.bullish_tickers||[]).slice(0,4).join(' ');
+    const bearT = (sig.bearish_tickers||[]).slice(0,3).join(' ');
+    return `
+      <div class="geo-card ${sig.risk_level}">
+        <div class="geo-name">
+          ${riskEmoji(sig.risk_level)} ${name}
+          <span class="geo-risk ${sig.risk_level}">${sig.risk_level}</span>
+          <span style="font-size:10px;color:var(--faint);font-weight:400;margin-left:auto">${sig.article_count} art.</span>
+        </div>
+        <div class="geo-summary">${sig.summary || ''}</div>
+        <div class="geo-impact">
+          ${bullS}${bearS}
+          ${bullT ? `<span style="font-size:10px;color:var(--bull);font-weight:700">${bullT}</span>` : ''}
+          ${bearT ? `<span style="font-size:10px;color:var(--bear);font-weight:700">${bearT}</span>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── Sector sentiment ──────────────────────────────────────────────────────────
+function renderSectors() {
+  const sects = D.sector_sentiment || {};
+  const sorted = Object.entries(sects).sort((a,b) => b[1].avg_sentiment - a[1].avg_sentiment);
+  const maxS = Math.max(...sorted.map(([,s]) => Math.abs(s.avg_sentiment)), 0.01);
+  el('sector-list').innerHTML = sorted.map(([name, s]) => {
+    const sc  = s.avg_sentiment;
+    const pct = Math.abs(sc) / maxS * 100;
+    const col = sc > 0.10 ? 'var(--bull)' : sc < -0.10 ? 'var(--bear)' : 'var(--neutral)';
+    const sign = sc > 0 ? '+' : '';
+    return `
+      <div class="sector-row">
+        <span class="sector-nm">${name}</span>
+        <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%;background:${col}"></div></div>
+        <span class="bar-score" style="color:${col}">${sign}${sc.toFixed(3)}</span>
+      </div>`;
+  }).join('');
+}
+
+// ── Gauge ─────────────────────────────────────────────────────────────────────
+function renderGauge() {
+  const ms = D.market_sentiment || {};
+  const score = ms.score || 0;
+  const angle = Math.max(-90, Math.min(90, score * 360));
+  const rad   = (angle - 90) * Math.PI / 180;
+  const cx=110, cy=100, r=80;
+  const nx = cx + r * Math.cos(rad), ny = cy + r * Math.sin(rad);
+
+  el('gauge-svg').innerHTML = `
+    <path d="M30 100 A80 80 0 0 1 190 100" fill="none" stroke="#fee2e2" stroke-width="12" stroke-linecap="round"/>
+    <path d="M30 100 A80 80 0 0 1 110 20"  fill="none" stroke="#fde68a" stroke-width="12" stroke-linecap="round"/>
+    <path d="M110 20 A80 80 0 0 1 190 100" fill="none" stroke="#bbf7d0" stroke-width="12" stroke-linecap="round"/>
+    <line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="var(--text)" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="${cx}" cy="${cy}" r="5" fill="var(--text)"/>
+    <text x="28" y="118" font-size="11" fill="var(--bear)" font-weight="700">Bear</text>
+    <text x="158" y="118" font-size="11" fill="var(--bull)" font-weight="700">Bull</text>`;
+
+  el('gauge-lbl').textContent  = ms.label || '—';
+  el('gauge-score').textContent = `Score: ${score >= 0 ? '+' : ''}${score.toFixed(4)}`;
+  el('bull-n').textContent  = ms.bull_count    || 0;
+  el('neut-n').textContent  = ms.neutral_count || 0;
+  el('bear-n').textContent  = ms.bear_count    || 0;
+}
+
+// ── Influencers ───────────────────────────────────────────────────────────────
+function renderInfluencers() {
+  const infs = D.influencer_signals || {};
+  const avis = {Trump:'🇺🇸','Powell / Fed':'🏦','Musk':'🚀','Cathie Wood':'🌈','Saylor / Bitcoin':'₿'};
+  const entries = Object.entries(infs).filter(([,v]) => v.article_count > 0)
+    .sort((a,b) => b[1].article_count - a[1].article_count);
+  if (!entries.length) {
+    el('inf-list').innerHTML = '<div style="color:var(--faint);font-size:12px;text-align:center;padding:14px">No influencer signals today.</div>';
+    return;
+  }
+  el('inf-list').innerHTML = entries.map(([name, sig]) => {
+    const sc  = sig.avg_sentiment;
+    const col = sc > 0.1 ? 'var(--bull)' : sc < -0.1 ? 'var(--bear)' : 'var(--neutral)';
+    return `
+      <div class="inf-row">
+        <div class="inf-avi">${avis[name] || '👤'}</div>
+        <div style="flex:1">
+          <div class="inf-name">${name}</div>
+          <div class="inf-ct">${sig.article_count} mentions</div>
+          <div class="inf-sent" style="color:${col}">${sc >= 0 ? '+' : ''}${sc.toFixed(4)} sentiment</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── Headlines ─────────────────────────────────────────────────────────────────
+function renderHeadlines() {
+  const bull = D.top_bullish || [];
+  const bear = D.top_bearish || [];
+  const all  = [...bull, ...bear].sort((a,b) => Math.abs(b.score) - Math.abs(a.score)).slice(0,8);
+  el('hl-list').innerHTML = all.map(h => {
+    const sc  = h.score || 0;
+    const cls = sc > 0.1 ? 'bull' : sc < -0.1 ? 'bear' : 'neut';
+    const lbl = sc > 0.1 ? '▲' : sc < -0.1 ? '▼' : '→';
+    return `
+      <div class="hl-item">
+        <div class="hl-title"><a href="${h.link}" style="color:var(--text);text-decoration:none">${h.title}</a></div>
+        <div class="hl-meta">
+          <span class="hl-src">${h.source}</span>
+          <span class="pill ${cls}">${lbl} ${sc.toFixed(3)}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── Header ────────────────────────────────────────────────────────────────────
+function renderHeader() {
+  const ms    = D.market_sentiment || {};
+  const score = ms.score || 0;
+  const icon  = score >= 0.25 ? '🐂' : score >= 0.10 ? '📈' : score <= -0.25 ? '🐻' : score <= -0.10 ? '📉' : '➡️';
+  el('hdr-sub').textContent  = `${D.generated_at_sgt || '—'} · ${ms.total_articles || 0} articles`;
+  el('mkt-badge').textContent = `${icon} ${score >= 0 ? '+' : ''}${score.toFixed(3)}`;
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+renderHeader();
+renderBao();
+renderGems();
+renderGeo();
+renderSectors();
+renderGauge();
+renderInfluencers();
+renderHeadlines();
+</script>
+</body>
+</html>
