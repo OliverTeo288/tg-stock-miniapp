@@ -317,6 +317,36 @@ if (twa) {
   twa.ready();
   twa.expand();
 }
+
+// ── Auth gate ─────────────────────────────────────────────────────────────────
+// _ALLOWED_IDS is baked in by market_intel.py from telegram_config.json
+// Empty list = no restriction (fallback before first setup)
+const _ALLOWED_IDS = [287006350];
+
+(function _authCheck() {
+  if (!_ALLOWED_IDS.length) return;  // unrestricted
+
+  const _deny = (icon, heading, sub) => {
+    document.body.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+                  min-height:100vh;background:#060b14;color:#8aaad0;
+                  font-family:-apple-system,sans-serif;text-align:center;padding:32px">
+        <div style="font-size:48px;margin-bottom:16px">${icon}</div>
+        <div style="font-size:17px;font-weight:700;color:#c8d8f0;margin-bottom:10px">${heading}</div>
+        <div style="font-size:12px;color:#4a6080;line-height:1.6">${sub}</div>
+      </div>`;
+    throw new Error('Auth blocked');
+  };
+
+  const userId = twa?.initDataUnsafe?.user?.id;
+  if (!userId) {
+    _deny('🔒', 'Private Dashboard', 'Open this link inside Telegram<br>to access the Mini App.');
+  }
+  if (!_ALLOWED_IDS.includes(userId)) {
+    _deny('⛔', 'Access Denied', `Your account (ID: ${userId})<br>is not authorised to view this dashboard.`);
+  }
+})();
+
 // Force dark terminal theme always
 document.documentElement.classList.add('dark');
 
