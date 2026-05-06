@@ -170,6 +170,38 @@ body{
 .inf-name{font-size:13px;font-weight:700;margin-bottom:2px}
 .inf-ct{font-size:10px;color:var(--faint);margin-bottom:4px}
 .inf-sent{font-size:11px;color:var(--muted)}
+
+/* ── Stocks tab ── */
+.idx-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px}
+.idx-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px 8px;text-align:center}
+.idx-name{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.idx-price{font-family:var(--mono);font-size:13px;font-weight:800;color:var(--text);margin-bottom:2px}
+.idx-chg{font-size:11px;font-weight:700}
+.idx-chg.up{color:var(--bull)}.idx-chg.dn{color:var(--bear)}.idx-chg.flat{color:var(--neutral)}
+
+.stk-filters{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 10px;align-items:center}
+.stk-sel{flex:1;min-width:120px;background:var(--card);color:var(--text);border:1px solid var(--border);
+         border-radius:6px;padding:7px 8px;font-size:12px;-webkit-appearance:none;appearance:none}
+.stk-inp{flex:1;min-width:90px;background:var(--card);color:var(--text);border:1px solid var(--border);
+         border-radius:6px;padding:7px 8px;font-size:12px;outline:none}
+.stk-inp::placeholder{color:var(--faint)}
+.stk-count{font-size:10px;color:var(--faint);white-space:nowrap;padding:0 2px}
+
+.stk-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding-bottom:8px}
+.stk-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:11px 10px;cursor:default}
+.stk-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px}
+.stk-sym{font-family:var(--mono);font-size:15px;font-weight:800;color:var(--text)}
+.stk-tier{font-size:8px;font-weight:800;padding:2px 5px;border-radius:4px;line-height:1.4}
+.stk-tier.sb{background:var(--conv);color:#fff}
+.stk-tier.hg{background:var(--gem);color:#000}
+.stk-price{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px}
+.stk-chg{font-size:11px;font-weight:700;margin-bottom:3px}
+.stk-chg.up{color:var(--bull)}.stk-chg.dn{color:var(--bear)}.stk-chg.flat{color:var(--neutral)}
+.stk-sector{font-size:9px;color:var(--faint);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stk-52w{display:flex;align-items:center;gap:4px;margin-top:4px}
+.w52-bar{flex:1;height:3px;background:var(--border);border-radius:2px;overflow:hidden}
+.w52-fill{height:100%;background:var(--bao);border-radius:2px}
+.w52-lbl{font-size:9px;color:var(--faint);font-family:var(--mono);min-width:26px}
 </style>
 </head>
 <body>
@@ -230,6 +262,27 @@ body{
   <div class="card" id="hl-list"></div>
 </div>
 
+<div class="page" id="pg-stocks">
+  <div class="sec">📊 Market Indices</div>
+  <div class="idx-strip" id="idx-strip"></div>
+
+  <div class="stk-filters">
+    <select id="stk-sector" class="stk-sel">
+      <option value="">All Sectors</option>
+    </select>
+    <select id="stk-tier" class="stk-sel">
+      <option value="">All Tiers</option>
+      <option value="STRONG BUY">⭐ Strong Buy</option>
+      <option value="HIDDEN GEM">💎 Hidden Gem</option>
+      <option value="WATCH">👁 Watch</option>
+    </select>
+    <input id="stk-search" class="stk-inp" placeholder="🔍 Ticker…" type="text" autocomplete="off" autocorrect="off" autocapitalize="characters">
+    <span id="stk-count" class="stk-count"></span>
+  </div>
+
+  <div class="stk-grid" id="stk-grid"></div>
+</div>
+
 <!-- ── Bottom tab bar ── -->
 <div class="tabbar">
   <button class="tbtab active" onclick="switchTab('pg-picks',this)">
@@ -247,6 +300,10 @@ body{
   <button class="tbtab" onclick="switchTab('pg-signals',this)">
     <svg viewBox="0 0 24 24"><path d="M3 3h2v18H3zm16 4h2v14h-2zm-8-4h2v18h-2z"/></svg>
     Signals
+  </button>
+  <button class="tbtab" onclick="switchTab('pg-stocks',this);renderStocksTab()">
+    <svg viewBox="0 0 24 24"><path d="M3 13h2v8H3zm4-4h2v12H7zm4-4h2v16h-2zm4 8h2v8h-2zm4-6h2v14h-2z"/></svg>
+    Stocks
   </button>
 </div>
 
@@ -574,6 +631,126 @@ function renderHeader() {
   el('mkt-badge').textContent = `${icon} ${score >= 0 ? '+' : ''}${score.toFixed(3)}`;
 }
 
+
+// ── Stocks tab ────────────────────────────────────────────────────────────────
+let _stocksRendered = false;
+function renderStocksTab() {
+  if (_stocksRendered) return;
+  _stocksRendered = true;
+
+  const prices  = D.prices || {};
+  const recs    = D.recommendations || [];
+  const bao     = D.buy_at_open || [];
+
+  // Build ticker → {tier, sector} lookup
+  // Prefer D.ticker_meta (new flat dict from server), fall back to scanning recs + bao
+  const meta = Object.assign({}, D.ticker_meta || {});
+  recs.forEach(r => {
+    if (!meta[r.ticker]) meta[r.ticker] = {};
+    if (!meta[r.ticker].tier)   meta[r.ticker].tier   = r.tier;
+    if (!meta[r.ticker].sector) meta[r.ticker].sector = r.sector;
+  });
+  bao.forEach(b => {
+    if (!meta[b.ticker]) meta[b.ticker] = {};
+    if (!meta[b.ticker].tier)   meta[b.ticker].tier   = b.tier;
+    if (!meta[b.ticker].sector) meta[b.ticker].sector = b.sector;
+  });
+
+  // Separate index vs stock tickers
+  const INDEX_KEYS = ['^SPX', '^NDX', '^VIX'];
+  const stockTickers = Object.keys(prices).filter(k => !k.startsWith('^'));
+  const indexTickers = INDEX_KEYS.filter(k => prices[k]);
+
+  // ── Index strip ────────────────────────────────────────────────────────────
+  const IDX_LABEL = {'^SPX':'S&P 500','^NDX':'NASDAQ 100','^VIX':'VIX'};
+  el('idx-strip').innerHTML = indexTickers.map(k => {
+    const p   = prices[k];
+    const chg = fmtChg(p.change_pct);
+    const vixColor = k === '^VIX'
+      ? (p.price > 25 ? 'var(--bear)' : p.price > 18 ? 'var(--watch)' : 'var(--bull)')
+      : '';
+    return `<div class="idx-card">
+      <div class="idx-name">${IDX_LABEL[k] || k}</div>
+      <div class="idx-price" style="${vixColor ? 'color:'+vixColor : ''}">${fmtPrice(p.price)}</div>
+      <div class="idx-chg ${chg.cls}">${chg.str}</div>
+    </div>`;
+  }).join('');
+
+  // ── Populate sector dropdown ───────────────────────────────────────────────
+  const sectors = [...new Set(stockTickers.map(t => meta[t]?.sector).filter(Boolean))].sort();
+  const sectorSel = el('stk-sector');
+  sectors.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    sectorSel.appendChild(opt);
+  });
+
+  // ── Filter + render ────────────────────────────────────────────────────────
+  const TIER_ORD = {'STRONG BUY':0,'HIDDEN GEM':1,'BUY':2,'WATCH':3,'AVOID':4};
+
+  function applyFilters() {
+    const sectorF = el('stk-sector').value;
+    const tierF   = el('stk-tier').value;
+    const searchF = el('stk-search').value.trim().toUpperCase();
+
+    const filtered = stockTickers.filter(t => {
+      const m = meta[t] || {};
+      if (sectorF && m.sector !== sectorF) return false;
+      if (tierF) {
+        const tier = m.tier || 'WATCH';
+        if (tier !== tierF) return false;
+      }
+      if (searchF && !t.includes(searchF)) return false;
+      return true;
+    });
+
+    // Sort: by tier → then by |change_pct| desc
+    filtered.sort((a, b) => {
+      const ta = TIER_ORD[meta[a]?.tier || 'WATCH'] ?? 3;
+      const tb = TIER_ORD[meta[b]?.tier || 'WATCH'] ?? 3;
+      if (ta !== tb) return ta - tb;
+      return Math.abs(prices[b]?.change_pct || 0) - Math.abs(prices[a]?.change_pct || 0);
+    });
+
+    el('stk-count').textContent = filtered.length + ' stocks';
+
+    el('stk-grid').innerHTML = filtered.map(ticker => {
+      const pd   = prices[ticker] || {};
+      const m    = meta[ticker] || {};
+      const chg  = fmtChg(pd.change_pct);
+      const tier = m.tier;
+      const tierCls = tier === 'STRONG BUY' ? 'sb' : tier === 'HIDDEN GEM' ? 'hg' : '';
+      const tierLbl = tier === 'STRONG BUY' ? '★ BUY' : tier === 'HIDDEN GEM' ? '◆ GEM' : '';
+      const w52 = pd.week52_position != null ? Math.round(pd.week52_position * 100) : null;
+
+      // Border accent for STRONG BUY
+      const borderStyle = tier === 'STRONG BUY'
+        ? 'border-color:var(--bao);box-shadow:0 0 8px rgba(0,229,255,.12)'
+        : tier === 'HIDDEN GEM'
+        ? 'border-color:var(--gem)'
+        : '';
+
+      return `<div class="stk-card" style="${borderStyle}">
+        <div class="stk-top">
+          <span class="stk-sym">${ticker}</span>
+          ${tierCls ? `<span class="stk-tier ${tierCls}">${tierLbl}</span>` : ''}
+        </div>
+        <div class="stk-price">${fmtPrice(pd.price)}</div>
+        <div class="stk-chg ${chg.cls}">${chg.str}</div>
+        ${m.sector ? `<div class="stk-sector">${m.sector}</div>` : '<div class="stk-sector" style="color:transparent">—</div>'}
+        ${w52 != null ? `<div class="stk-52w">
+          <div class="w52-bar"><div class="w52-fill" style="width:${w52}%"></div></div>
+          <span class="w52-lbl">${w52}%</span>
+        </div>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  el('stk-sector').addEventListener('change', applyFilters);
+  el('stk-tier').addEventListener('change', applyFilters);
+  el('stk-search').addEventListener('input', applyFilters);
+  applyFilters();
+}
 // ── Boot ──────────────────────────────────────────────────────────────────────
 renderHeader();
 renderBao();
