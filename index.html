@@ -58,6 +58,20 @@ body{
   border:1px solid var(--border);color:var(--text);background:var(--card);
 }
 
+/* ── Refresh button ── */
+.rfr-btn{
+  font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;
+  border:1px solid var(--border);background:var(--card);color:var(--text);
+  cursor:pointer;display:flex;align-items:center;gap:4px;
+  transition:background .2s,color .2s;
+}
+.rfr-btn:active{background:var(--accent);color:#000;}
+.rfr-btn.loading{opacity:.6;pointer-events:none;}
+.rfr-btn.success{border-color:#00c853;color:#00c853;}
+.rfr-btn.error{border-color:#ff4444;color:#ff4444;}
+.rfr-spin{display:inline-block;transition:transform .3s;}
+.rfr-btn.loading .rfr-spin{animation:spin 1s linear infinite;}
+
 /* ── Section titles ── */
 .sec{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;
      color:var(--muted);margin:16px 0 8px;padding:0 2px;display:flex;align-items:center;gap:6px}
@@ -225,7 +239,12 @@ body{
     <div class="hdr-title">📊 Market Intel</div>
     <div class="hdr-sub" id="hdr-sub">Loading…</div>
   </div>
-  <div class="mkt-badge" id="mkt-badge">—</div>
+  <div style="display:flex;align-items:center;gap:6px">
+    <button class="rfr-btn" id="rfrBtn" onclick="triggerRefresh()">
+      <span class="rfr-spin">⟳</span><span id="rfrLbl">REFRESH</span>
+    </button>
+    <div class="mkt-badge" id="mkt-badge">—</div>
+  </div>
 </div>
 
 <!-- ── Tab pages ── -->
@@ -844,6 +863,42 @@ renderSectors();
 renderGauge();
 renderInfluencers();
 renderHeadlines();
+
+// ── Refresh button ─────────────────────────────────────────────────────────
+const _TG_TASK_ID = 'market-intel-open';
+
+async function triggerRefresh() {
+  const btn = document.getElementById('rfrBtn');
+  const lbl = document.getElementById('rfrLbl');
+  if (!btn || btn.classList.contains('loading')) return;
+
+  btn.classList.add('loading');
+  btn.classList.remove('success', 'error');
+  lbl.textContent = 'PULLING…';
+
+  try {
+    if (typeof window.cowork?.runScheduledTask === 'function') {
+      await window.cowork.runScheduledTask(_TG_TASK_ID);
+      btn.classList.remove('loading');
+      btn.classList.add('success');
+      lbl.textContent = '✓ RUNNING';
+      setTimeout(() => {
+        btn.classList.remove('success');
+        lbl.textContent = 'REFRESH';
+      }, 8000);
+    } else {
+      // Not in Cowork — graceful fallback
+      btn.classList.remove('loading');
+      lbl.textContent = 'REFRESH';
+    }
+  } catch(e) {
+    btn.classList.remove('loading');
+    btn.classList.add('error');
+    lbl.textContent = 'ERROR';
+    setTimeout(() => { btn.classList.remove('error'); lbl.textContent = 'REFRESH'; }, 4000);
+  }
+}
+
 </script>
 </body>
 </html>
