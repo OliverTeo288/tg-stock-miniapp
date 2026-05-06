@@ -202,6 +202,19 @@ body{
 .w52-bar{flex:1;height:3px;background:var(--border);border-radius:2px;overflow:hidden}
 .w52-fill{height:100%;background:var(--bao);border-radius:2px}
 .w52-lbl{font-size:9px;color:var(--faint);font-family:var(--mono);min-width:26px}
+.stk-tv{display:flex;align-items:center;gap:4px;margin-top:5px;flex-wrap:wrap}
+.tv-badge{font-size:7.5px;font-weight:800;padding:2px 4px;border-radius:3px;letter-spacing:.3px}
+.tv-sb{background:#00c853;color:#000}.tv-b{background:#69f0ae;color:#000}
+.tv-ss{background:#c62828;color:#fff}.tv-s{background:#ef6c00;color:#fff}
+.tv-rsi{font-size:9px;color:var(--muted);font-family:var(--mono)}
+.tv-rsi.rsi-low{color:var(--bull)}.tv-rsi.rsi-high{color:var(--bear)}
+.tv-strip{overflow-x:auto;display:flex;gap:7px;padding:8px 0 4px;scrollbar-width:none;margin-bottom:6px}
+.tv-strip::-webkit-scrollbar{display:none}
+.tv-mover{background:var(--card);border:1px solid #00c85344;border-radius:8px;padding:6px 9px;min-width:72px;flex-shrink:0;text-align:center}
+.tv-mover-sym{font-family:var(--mono);font-size:12px;font-weight:800;color:var(--text)}
+.tv-mover-rec{font-size:8px;font-weight:700;color:#00c853;margin-top:1px}
+.tv-mover-chg{font-size:9px;font-weight:600;margin-top:2px}
+.tv-strip-label{font-size:9px;color:var(--faint);text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px}
 </style>
 </head>
 <body>
@@ -668,9 +681,11 @@ function renderStocksTab() {
   if (_stocksRendered) return;
   _stocksRendered = true;
 
-  const prices  = D.prices || {};
-  const recs    = D.recommendations || [];
-  const bao     = D.buy_at_open || [];
+  const prices       = D.prices || {};
+  const recs         = D.recommendations || [];
+  const bao          = D.buy_at_open || [];
+  const tvTech       = D.tv_technicals || {};
+  const tvScreener   = D.tv_screener   || [];
 
   // Build ticker → {tier, sector} lookup
   // Prefer D.ticker_meta (new flat dict from server), fall back to scanning recs + bao
@@ -705,6 +720,29 @@ function renderStocksTab() {
       <div class="idx-chg ${chg.cls}">${chg.str}</div>
     </div>`;
   }).join('');
+
+  // ── TradingView screener strip (top TV movers) ─────────────────────────────
+  const tvMovers = tvScreener.filter(m => m.tv_rec_label === 'STRONG_BUY' || m.tv_rec_label === 'BUY').slice(0, 10);
+  if (tvMovers.length) {
+    const stripHtml = tvMovers.map(m => {
+      const chg = m.change_pct != null
+        ? `<div class="tv-mover-chg ${m.change_pct >= 0 ? 'up' : 'dn'}">${m.change_pct >= 0 ? '+' : ''}${m.change_pct.toFixed(1)}%</div>`
+        : '';
+      const recLbl = m.tv_rec_label === 'STRONG_BUY' ? '▲ STRONG BUY' : '▲ BUY';
+      return `<div class="tv-mover">
+        <div class="tv-mover-sym">${m.ticker}</div>
+        <div class="tv-mover-rec">${recLbl}</div>
+        ${chg}
+      </div>`;
+    }).join('');
+    // Inject above the index strip if a container exists, else prepend to stk-grid area
+    const idxStrip = el('idx-strip');
+    if (idxStrip) {
+      const wrap = document.createElement('div');
+      wrap.innerHTML = `<div class="tv-strip-label">TV Screener</div><div class="tv-strip">${stripHtml}</div>`;
+      idxStrip.parentNode.insertBefore(wrap, idxStrip);
+    }
+  }
 
   // ── Populate sector dropdown ───────────────────────────────────────────────
   const sectors = [...new Set(stockTickers.map(t => meta[t]?.sector).filter(Boolean))].sort();
@@ -747,6 +785,7 @@ function renderStocksTab() {
     el('stk-grid').innerHTML = filtered.map(ticker => {
       const pd   = prices[ticker] || {};
       const m    = meta[ticker] || {};
+      const td   = tvTech[ticker] || {};
       const chg  = fmtChg(pd.change_pct);
       const tier = m.tier;
       const tierCls = tier === 'STRONG BUY' ? 'sb' : tier === 'HIDDEN GEM' ? 'hg' : '';
@@ -760,6 +799,19 @@ function renderStocksTab() {
         ? 'border-color:var(--gem)'
         : '';
 
+      // TV signal badge
+      const tvLabel = td.tv_rec_label || '';
+      let tvBadge = '';
+      if      (tvLabel === 'STRONG_BUY')  tvBadge = `<span class="tv-badge tv-sb">▲ SB</span>`;
+      else if (tvLabel === 'BUY')         tvBadge = `<span class="tv-badge tv-b">▲ B</span>`;
+      else if (tvLabel === 'STRONG_SELL') tvBadge = `<span class="tv-badge tv-ss">▼ SS</span>`;
+      else if (tvLabel === 'SELL')        tvBadge = `<span class="tv-badge tv-s">▼ S</span>`;
+
+      // RSI badge
+      const rsi = td.rsi != null ? Math.round(td.rsi) : null;
+      const rsiCls = rsi != null ? (rsi < 30 ? 'rsi-low' : rsi > 70 ? 'rsi-high' : '') : '';
+      const rsiBadge = rsi != null ? `<span class="tv-rsi ${rsiCls}">RSI ${rsi}</span>` : '';
+
       return `<div class="stk-card" style="${borderStyle}">
         <div class="stk-top">
           <span class="stk-sym">${ticker}</span>
@@ -768,6 +820,7 @@ function renderStocksTab() {
         <div class="stk-price">${fmtPrice(pd.price)}</div>
         <div class="stk-chg ${chg.cls}">${chg.str}</div>
         ${m.sector ? `<div class="stk-sector">${m.sector}</div>` : '<div class="stk-sector" style="color:transparent">—</div>'}
+        ${(tvBadge || rsiBadge) ? `<div class="stk-tv">${tvBadge}${rsiBadge}</div>` : ''}
         ${w52 != null ? `<div class="stk-52w">
           <div class="w52-bar"><div class="w52-fill" style="width:${w52}%"></div></div>
           <span class="w52-lbl">${w52}%</span>
