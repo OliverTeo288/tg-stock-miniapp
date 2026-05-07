@@ -135,6 +135,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-si
 .pick-price{font-family:var(--mono);font-size:14px;color:var(--dim)}
 .pick-score{font-family:var(--mono);font-size:12px}
 .pick-buzz{font-size:11px;font-family:var(--mono);margin-top:2px}
+.pick-target{font-size:11px;font-family:var(--mono);margin-top:2px;color:var(--gold)}
 .pick-sector{font-size:11px;color:var(--dim);margin-top:auto}
 .pick-rationale{font-size:11px;color:var(--dim);border-top:1px solid var(--border);padding-top:6px;margin-top:4px}
 .pick-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
@@ -445,7 +446,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-si
     <thead>
       <tr>
         <th>TICKER</th><th>PRICE</th><th>CHG%</th><th>TIER</th>
-        <th>TV</th><th>RSI</th><th>SCORE</th><th>SECTOR</th><th>REASON</th>
+        <th>TV</th><th>RSI</th><th>SCORE</th><th>TARGET</th><th>SECTOR</th><th>REASON</th>
       </tr>
     </thead>
     <tbody id="picksBody"></tbody>
@@ -628,6 +629,23 @@ function renderHero(){
   // Reddit buzz metric for hero pick
   const hbuzz = buzzMap[p.ticker];
   if(hbuzz) metaHtml += `<div class="hero-metric"><div class="hero-metric-val c-purple">🔥 ${hbuzz.mentions}</div><div class="hero-metric-lbl">WSB Mentions</div></div>`;
+  // Analyst / technical target price for hero pick
+  const atgts = D.analyst_targets||{};
+  const htgt = atgts[p.ticker];
+  const hcur = (D.prices||{})[p.ticker]?.price ?? p.price;
+  if(htgt){
+    const hup  = htgt.target_upside_pct ?? (hcur?(htgt.target_mean-hcur)/hcur*100:null);
+    const hupStr = hup!=null?(hup>=0?`<span class="c-green">▲${hup.toFixed(1)}%</span>`:`<span class="c-red">▼${Math.abs(hup).toFixed(1)}%</span>`):'';
+    const hact = htgt.analyst_count?`<span style="font-size:9px;opacity:.6"> (${htgt.analyst_count} analysts)</span>`:'';
+    metaHtml += `<div class="hero-metric"><div class="hero-metric-val">${fmtPrice(htgt.target_mean)} ${hupStr}</div><div class="hero-metric-lbl">Target${hact}</div></div>`;
+  } else {
+    // technical fallback from recommendation object itself
+    const rtgt = p.target_price;
+    if(rtgt && hcur){
+      const rup = ((rtgt-hcur)/hcur*100).toFixed(1);
+      metaHtml += `<div class="hero-metric"><div class="hero-metric-val">${fmtPrice(rtgt)} <span class="c-dim" style="font-size:10px">▲${rup}%</span></div><div class="hero-metric-lbl">52W Target</div></div>`;
+    }
+  }
 
   const ratHtml = (p.rationale||[]).map(r=>`<li>${r}</li>`).join('');
   const tagsHtml = (p.signal_tags||[]).slice(0,4).map(t=>`<span class="pick-tag">${t}</span>`).join('');
@@ -659,6 +677,12 @@ function renderHero(){
       <div class="pick-score c-cyan">Score: ${fmt(p.buy_score,3)}</div>
       ${(()=>{const tvd=(tvTech[p.ticker]||{});const lbl=tvd.tv_rec_label||'';const cls=lbl==='STRONG_BUY'?'tv-sb':lbl==='BUY'?'tv-b':lbl==='STRONG_SELL'?'tv-ss':lbl==='SELL'?'tv-s':'';const rsi=tvd.rsi!=null?` RSI ${Math.round(tvd.rsi)}`:'';return cls?`<div class="tv-sig"><span class="tv-badge ${cls}">${lbl.replace('_',' ')}</span><span class="tv-rsi">${rsi}</span></div>`:'';})()}
       ${(()=>{const bz=buzzMap[p.ticker];return bz?`<div class="pick-buzz c-purple">🔥 ${bz.mentions} WSB</div>`:''})()}
+      ${(()=>{
+        const tgt=atgts[p.ticker]; const cur2=(D.prices||{})[p.ticker]?.price??p.price;
+        if(tgt){const up=tgt.target_upside_pct??(cur2?(tgt.target_mean-cur2)/cur2*100:null);const upStr=up!=null?(up>=0?`<span class="c-green">▲${up.toFixed(1)}%</span>`:`<span class="c-red">▼${Math.abs(up).toFixed(1)}%</span>`):'';return `<div class="pick-target">Target ${fmtPrice(tgt.target_mean)} ${upStr}</div>`;}
+        if(p.target_price&&cur2){const up2=((p.target_price-cur2)/cur2*100).toFixed(1);return `<div class="pick-target c-dim">52W Hi ${fmtPrice(p.target_price)} <span class="c-dim">▲${up2}%</span></div>`;}
+        return '';
+      })()}
       <div class="pick-tags">${(p.signal_tags||[]).slice(0,2).map(t=>`<span class="pick-tag">${t}</span>`).join('')}</div>
       <div class="pick-sector c-dim">${p.sector||''}</div>
       <div class="pick-rationale">${(p.rationale||[])[0]||''}</div>
@@ -788,6 +812,20 @@ function drawPicks(recs){
     const tvLbl = tvd.tv_rec_label||'';
     const tvCls = tvLbl==='STRONG_BUY'?'tv-sb':tvLbl==='BUY'?'tv-b':tvLbl==='STRONG_SELL'?'tv-ss':tvLbl==='SELL'?'tv-s':'';
     const buzzHtml = bMap[r.ticker]?`<div style="font-size:10px;color:var(--purple)">🔥${bMap[r.ticker]}</div>`:'';
+    // Target cell: analyst mean if available, else recommendation's target_price (52w hi fallback)
+    const tgts = D.analyst_targets||{};
+    const tgt = tgts[r.ticker];
+    const tgtCur = price;
+    let tgtHtml = '<span class="c-dim">–</span>';
+    if(tgt && tgt.target_mean){
+      const up = tgtCur?(tgt.target_mean-tgtCur)/tgtCur*100:null;
+      const upStr = up!=null?(up>=0?`<span class="c-green">▲${up.toFixed(1)}%</span>`:`<span class="c-red">▼${Math.abs(up).toFixed(1)}%</span>`):'';
+      const ac = tgt.analyst_count?`<div style="font-size:9px;color:var(--dim)">${tgt.analyst_count}🧑‍💼</div>`:'';
+      tgtHtml = `<span style="font-family:var(--mono);color:var(--gold)">${fmtPrice(tgt.target_mean)}</span> ${upStr}${ac}`;
+    } else if(r.target_price && tgtCur){
+      const up2 = ((r.target_price-tgtCur)/tgtCur*100).toFixed(1);
+      tgtHtml = `<span style="font-family:var(--mono);color:var(--dim)">${fmtPrice(r.target_price)}</span> <span class="c-dim" style="font-size:10px">▲${up2}%</span>`;
+    }
     tr.innerHTML=`
       <td class="td-ticker">${r.ticker}${preChg!=null?`<div style="font-size:10px;font-family:var(--mono);color:${preChg>0?'var(--green)':'var(--red)'}">Pre: ${pct(preChg)}</div>`:''}</td>
       <td class="td-price c-dim">${price!=null?fmtPrice(price):'–'}</td>
@@ -796,6 +834,7 @@ function drawPicks(recs){
       <td>${tvCls?`<span class="tv-badge ${tvCls}">${tvLbl.replace('_',' ')}</span>`:'<span class="c-dim">–</span>'}</td>
       <td class="tv-rsi ${tvd.rsi!=null&&tvd.rsi<30?'tv-rsi-low':tvd.rsi>70?'tv-rsi-high':''}">${tvd.rsi!=null?Math.round(tvd.rsi):'–'}</td>
       <td class="td-score">${fmt(r.composite_score,3)}</td>
+      <td style="font-size:12px;white-space:nowrap">${tgtHtml}</td>
       <td class="td-sector">${r.sector||'–'}</td>
       <td class="td-reasons">${(r.reasons||[]).slice(0,2).join(' · ')}</td>
     `;
