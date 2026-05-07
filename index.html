@@ -437,6 +437,10 @@ function renderBao() {
     return;
   }
 
+  // Reddit buzz lookup
+  const baoMap = {};
+  (D.reddit_buzz||[]).forEach(b=>{baoMap[b.ticker]=b.mentions;});
+
   const [lead, ...rest] = bao;
   const lChg = fmtChg(lead.change_pct);
   const sigTags = (lead.signal_tags || []).slice(0,3).map(t =>
@@ -447,6 +451,8 @@ function renderBao() {
   ).join('');
   const under50 = lead.price != null && lead.price < 50;
   const [tCls, tLbl] = tierTag(lead.tier).split(' ').reduce((a,v,i) => i===0?[v,a[1]]:[a[0],a[1]+' '+v], ['','']);
+  const leadBuzz = baoMap[lead.ticker];
+  const leadBuzzTag = leadBuzz ? `<span class="tag tag-catalyst">🔥 ${leadBuzz} WSB</span>` : '';
 
   el('bao-lead').innerHTML = `
     <div class="bao-card">
@@ -464,6 +470,7 @@ function renderBao() {
         <span class="tag ${tCls}">${tLbl.trim()}</span>
         <span class="tag tag-sector">${lead.sector}</span>
         ${under50 ? '<span class="tag tag-price">Under $50</span>' : ''}
+        ${leadBuzzTag}
         ${sigTags}
       </div>
       <ul class="reasons">${reasonsHtml}</ul>
@@ -474,6 +481,7 @@ function renderBao() {
     const chg = fmtChg(p.change_pct);
     const [cls, lbl] = tierTag(p.tier).split(' ').reduce((a,v,i) => i===0?[v,a[1]]:[a[0],a[1]+' '+v], ['','']);
     const top1 = (p.rationale||p.reasons||[])[0] || '';
+    const subBuzz = baoMap[p.ticker];
     return `
       <div class="pick-row">
         <div class="pick-rk">#${i+2}</div>
@@ -481,6 +489,7 @@ function renderBao() {
           <div style="display:flex;align-items:center;gap:6px">
             <span class="pick-sym">${p.ticker}</span>
             <span class="tag ${cls}" style="font-size:8px">${lbl.trim()}</span>
+            ${subBuzz?`<span style="font-size:10px;color:#ce93d8">🔥${subBuzz}</span>`:''}
           </div>
           ${top1 ? `<div class="pick-reason">${top1}</div>` : ''}
         </div>
@@ -628,6 +637,28 @@ function renderGauge() {
       <div style="font-size:11px;color:var(--faint);margin-top:4px">Live on next refresh</div>`;
   }
   el('market-card').after(vixCard);
+
+  // Fear & Greed card — inject after VIX card
+  const fg = D.fear_greed || {};
+  if (fg.value != null) {
+    const fv = fg.value;
+    const fgColor = fv <= 25 ? '#ff4d5e' : fv <= 45 ? '#ffd54f' : fv <= 55 ? '#6b8ab0' : fv <= 75 ? '#00c853' : '#00e5ff';
+    const fgPct   = fv.toFixed(0);
+    const fgCard  = document.createElement('div');
+    fgCard.className = 'card';
+    fgCard.style.cssText = 'margin-top:10px;text-align:center;padding:16px';
+    fgCard.innerHTML = `
+      <div style="font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:2px;color:var(--muted);margin-bottom:8px">FEAR &amp; GREED INDEX</div>
+      <div style="font-family:var(--mono);font-size:40px;font-weight:800;color:${fgColor};line-height:1">${fgPct}</div>
+      <div style="font-size:12px;font-weight:700;color:${fgColor};margin:4px 0 12px;letter-spacing:.5px">${fg.label || ''}</div>
+      <div style="height:6px;border-radius:3px;background:linear-gradient(90deg,#ff4d5e,#ffd54f,#00c853,#00e5ff);position:relative;overflow:visible">
+        <div style="position:absolute;top:-4px;left:${fgPct}%;transform:translateX(-50%);width:2px;height:14px;background:white;border-radius:1px;box-shadow:0 0 6px rgba(255,255,255,.6)"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--faint);margin-top:4px">
+        <span>EXT FEAR</span><span>NEUTRAL</span><span>EXT GREED</span>
+      </div>`;
+    vixCard.after(fgCard);
+  }
 }
 
 // ── Influencers ───────────────────────────────────────────────────────────────
