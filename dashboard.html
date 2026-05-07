@@ -556,7 +556,13 @@ function renderHeader(){
   const score = ms.score||0;
   const label = ms.label||'';
   const sc = score>=0.1?'pill-green':score<=-0.1?'pill-red':'pill-dim';
-  pills += `<span class="pill ${sc}">${label} ${score>=0?'+':''}${fmt(score,3)}</span>`;
+  // Build breakdown tooltip: text / TV / momentum components
+  const stxt = ms.score_text!=null ? `News ${ms.score_text>=0?'+':''}${fmt(ms.score_text,3)}` : '';
+  const stv  = ms.score_tv!=null   ? `TV ${ms.score_tv>=0?'+':''}${fmt(ms.score_tv,3)}`       : '';
+  const smom = ms.score_momentum!=null ? `Mom ${ms.score_momentum>=0?'+':''}${fmt(ms.score_momentum,3)}` : '';
+  const stip = [stxt,stv,smom].filter(Boolean).join(' · ');
+  pills += `<span class="pill ${sc}" title="Blended: ${stip}">${label} ${score>=0?'+':''}${fmt(score,3)}</span>`;
+  if(stip) pills += `<span class="pill pill-dim" style="font-size:9px;opacity:.7">${stip}</span>`;
 
   // VIX pill
   if(ms.vix!=null){
