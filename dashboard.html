@@ -613,6 +613,22 @@ function tgtSourceLabel(tgt, fallback){
   return '';
 }
 
+// Format analyst target as a range: $low – $high (avg $mean, ▲X%)
+function fmtTgtRange(tgt, cur){
+  if(!tgt || !tgt.target_mean) return null;
+  const lo  = tgt.target_low  ? fmtPrice(tgt.target_low)  : '?';
+  const hi  = tgt.target_high ? fmtPrice(tgt.target_high) : '?';
+  const avg = fmtPrice(tgt.target_mean);
+  const up  = cur ? (tgt.target_mean - cur) / cur * 100 : null;
+  const upStr = up != null
+    ? (up >= 0
+        ? `<span class="c-green">▲${up.toFixed(1)}%</span>`
+        : `<span class="c-red">▼${Math.abs(up).toFixed(1)}%</span>`)
+    : '';
+  const ac = tgt.analyst_count ? `<span style="opacity:.55;font-size:9px"> · ${tgt.analyst_count} analysts</span>` : '';
+  return {lo, hi, avg, upStr, ac};
+}
+
 function chgClass(v){ return v>0?'c-green':v<0?'c-red':'c-dim' }
 
 function tierClass(t){
@@ -719,10 +735,11 @@ function renderHero(){
   const htgt = atgts[p.ticker];
   const hcur = (D.prices||{})[p.ticker]?.price ?? p.price;
   if(htgt){
-    const hup  = htgt.target_upside_pct ?? (hcur?(htgt.target_mean-hcur)/hcur*100:null);
-    const hupStr = hup!=null?(hup>=0?`<span class="c-green">▲${hup.toFixed(1)}%</span>`:`<span class="c-red">▼${Math.abs(hup).toFixed(1)}%</span>`):'';
-    const hact = htgt.analyst_count?`<span style="font-size:9px;opacity:.6"> (${htgt.analyst_count} analysts)</span>`:'';
-    metaHtml += `<div class="hero-metric"><div class="hero-metric-val">${fmtPrice(htgt.target_mean)} ${hupStr}</div><div class="hero-metric-lbl">Target${hact}</div></div>`;
+    const hr = fmtTgtRange(htgt, hcur);
+    if(hr){
+      metaHtml += `<div class="hero-metric"><div class="hero-metric-val" style="font-size:12px">${hr.lo} <span style="opacity:.5">–</span> ${hr.hi}</div><div class="hero-metric-lbl">Range${hr.ac}</div></div>`;
+      metaHtml += `<div class="hero-metric"><div class="hero-metric-val">${hr.avg} ${hr.upStr}</div><div class="hero-metric-lbl">Avg Target</div></div>`;
+    }
   } else {
     // technical fallback from recommendation object itself
     const rtgt = p.target_price;
@@ -764,7 +781,7 @@ function renderHero(){
       ${(()=>{const bz=buzzMap[p.ticker];return bz?`<div class="pick-buzz c-purple">🔥 ${bz.mentions} WSB</div>`:''})()}
       ${(()=>{
         const tgt=atgts[p.ticker]; const cur2=(D.prices||{})[p.ticker]?.price??p.price;
-        if(tgt){const up=tgt.target_upside_pct??(cur2?(tgt.target_mean-cur2)/cur2*100:null);const upStr=up!=null?(up>=0?`<span class="c-green">▲${up.toFixed(1)}%</span>`:`<span class="c-red">▼${Math.abs(up).toFixed(1)}%</span>`):'';return `<div class="pick-target">Target ${fmtPrice(tgt.target_mean)} ${upStr}</div>`;}
+        if(tgt){const r=fmtTgtRange(tgt,cur2);if(r)return `<div class="pick-target" style="font-size:10px">${r.lo}–${r.hi} <span style="opacity:.7">avg ${r.avg}</span> ${r.upStr}</div>`;}
         if(p.target_price&&cur2){const up2=((p.target_price-cur2)/cur2*100).toFixed(1);return `<div class="pick-target c-dim">52W Hi ${fmtPrice(p.target_price)} <span class="c-dim">▲${up2}%</span></div>`;}
         return '';
       })()}
@@ -916,10 +933,11 @@ function drawPicks(recs){
     const tgtCur = price;
     let tgtHtml = '<span class="c-dim">–</span>';
     if(tgt && tgt.target_mean){
-      const up = tgtCur?(tgt.target_mean-tgtCur)/tgtCur*100:null;
-      const upStr = up!=null?(up>=0?`<span class="c-green">▲${up.toFixed(1)}%</span>`:`<span class="c-red">▼${Math.abs(up).toFixed(1)}%</span>`):'';
-      const ac = tgt.analyst_count?`<div style="font-size:9px;color:var(--dim)">${tgt.analyst_count}🧑‍💼</div>`:'';
-      tgtHtml = `<span style="font-family:var(--mono);color:var(--gold)">${fmtPrice(tgt.target_mean)}</span> ${upStr}${ac}`;
+      const tr2 = fmtTgtRange(tgt, tgtCur);
+      if(tr2){
+        const ac = tgt.analyst_count?`<div style="font-size:9px;color:var(--dim)">${tgt.analyst_count}🧑‍💼</div>`:'';
+        tgtHtml = `<div style="font-family:var(--mono);font-size:11px;color:var(--dim)">${tr2.lo}<span style="opacity:.4">–</span>${tr2.hi}</div><div style="font-family:var(--mono);color:var(--gold)">${tr2.avg} ${tr2.upStr}</div>${ac}`;
+      }
     } else if(r.target_price && tgtCur){
       const up2 = ((r.target_price-tgtCur)/tgtCur*100).toFixed(1);
       tgtHtml = `<span style="font-family:var(--mono);color:var(--dim)">${fmtPrice(r.target_price)}</span> <span class="c-dim" style="font-size:10px">▲${up2}%</span>`;
