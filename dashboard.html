@@ -588,6 +588,31 @@ const fmt = (n,d=2) => n==null?'–':Number(n).toFixed(d);
 const pct = n => n==null?'–':(n>=0?'+':'')+fmt(n,2)+'%';
 const fmtPrice = n => n==null?'–':'$'+Number(n).toFixed(n<10?3:2);
 
+// TradingView signal explanations (shown on badge hover)
+const TV_TIPS = {
+  STRONG_BUY:  'TradingView: STRONG BUY\nNearly all technical indicators are bullish — RSI momentum, MACD crossover, price above key moving averages (50/200 SMA), Stochastic, and Williams %R all aligned upward.',
+  BUY:         'TradingView: BUY\nMajority of technical indicators are bullish. Solid uptrend with most oscillators and moving averages pointing positive.',
+  NEUTRAL:     'TradingView: NEUTRAL\nMixed signals — some bullish, some bearish indicators. No strong directional bias from technicals alone.',
+  SELL:        'TradingView: SELL\nMajority of technical indicators are bearish. Downtrend with most oscillators and moving averages pointing negative.',
+  STRONG_SELL: 'TradingView: STRONG SELL\nNearly all technical indicators are bearish — RSI weakening, MACD bearish crossover, price below key moving averages. Strong downward pressure.',
+};
+// Helper: build a TV badge span with tooltip
+function tvBadge(lbl){
+  if(!lbl) return '';
+  const cls = lbl==='STRONG_BUY'?'tv-sb':lbl==='BUY'?'tv-b':lbl==='STRONG_SELL'?'tv-ss':lbl==='SELL'?'tv-s':'';
+  if(!cls) return '';
+  const tip = (TV_TIPS[lbl]||'').replace(/'/g,'&#39;');
+  return `<span class="tv-badge ${cls}" title="${tip}">${lbl.replace('_',' ')}</span>`;
+}
+
+// Target price source label
+function tgtSourceLabel(tgt, fallback){
+  if(tgt && tgt.analyst_count) return `${tgt.analyst_count} analyst${tgt.analyst_count>1?'s':''}`;
+  if(tgt) return 'analyst est.';
+  if(fallback) return '52W high';
+  return '';
+}
+
 function chgClass(v){ return v>0?'c-green':v<0?'c-red':'c-dim' }
 
 function tierClass(t){
@@ -683,9 +708,8 @@ function renderHero(){
   const tvTech = D.tv_technicals||{};
   const tvp = tvTech[p.ticker]||{};
   if(tvp.tv_rec_label && tvp.tv_rec_label !== 'NEUTRAL'){
-    const tvCls = tvp.tv_rec_label==='STRONG_BUY'?'tv-sb':tvp.tv_rec_label==='BUY'?'tv-b':tvp.tv_rec_label==='STRONG_SELL'?'tv-ss':'tv-s';
     const rsiStr = tvp.rsi!=null?` · RSI ${Math.round(tvp.rsi)}`:'';
-    metaHtml += `<div class="hero-metric"><div class="hero-metric-val"><span class="tv-badge ${tvCls}">${tvp.tv_rec_label.replace('_',' ')}</span></div><div class="hero-metric-lbl">TV Signal${rsiStr}</div></div>`;
+    metaHtml += `<div class="hero-metric"><div class="hero-metric-val">${tvBadge(tvp.tv_rec_label)}</div><div class="hero-metric-lbl">TV Signal${rsiStr}</div></div>`;
   }
   // Reddit buzz metric for hero pick
   const hbuzz = buzzMap[p.ticker];
@@ -736,7 +760,7 @@ function renderHero(){
       <div class="pick-price c-dim">${fmtPrice(p.price)} <span class="${chgClass(p.change_pct)}">${pct(p.change_pct)}</span></div>
       ${preHtml}
       <div class="pick-score c-cyan">Score: ${fmt(p.buy_score,3)}</div>
-      ${(()=>{const tvd=(tvTech[p.ticker]||{});const lbl=tvd.tv_rec_label||'';const cls=lbl==='STRONG_BUY'?'tv-sb':lbl==='BUY'?'tv-b':lbl==='STRONG_SELL'?'tv-ss':lbl==='SELL'?'tv-s':'';const rsi=tvd.rsi!=null?` RSI ${Math.round(tvd.rsi)}`:'';return cls?`<div class="tv-sig"><span class="tv-badge ${cls}">${lbl.replace('_',' ')}</span><span class="tv-rsi">${rsi}</span></div>`:'';})()}
+      ${(()=>{const tvd=(tvTech[p.ticker]||{});const lbl=tvd.tv_rec_label||'';const rsi=tvd.rsi!=null?` RSI ${Math.round(tvd.rsi)}`:'';const badge2=tvBadge(lbl);return badge2?`<div class="tv-sig">${badge2}<span class="tv-rsi">${rsi}</span></div>`:'';})()}
       ${(()=>{const bz=buzzMap[p.ticker];return bz?`<div class="pick-buzz c-purple">🔥 ${bz.mentions} WSB</div>`:''})()}
       ${(()=>{
         const tgt=atgts[p.ticker]; const cur2=(D.prices||{})[p.ticker]?.price??p.price;
@@ -787,8 +811,22 @@ function renderMovers(){
     return div;
   }
 
-  grid.appendChild(buildPanel('▲ PRE-MARKET MOVERS', pre, 'var(--green)'));
-  grid.appendChild(buildPanel('◉ POST-MARKET MOVERS', post, 'var(--blue)'));
+  grid.appendChild(buildPanel('▲ PRE-MARKET MOVERS  (4:00 AM – 9:30 AM ET)', pre, 'var(--green)'));
+  grid.appendChild(buildPanel('◉ POST-MARKET MOVERS (4:00 PM – 8:00 PM ET)', post, 'var(--blue)'));
+
+  // Subtitle: intel time + active session context
+  const sub = $('moverSubtitle');
+  if(sub){
+    const ts = D.generated_at_sgt||'';
+    const stateDesc = {
+      PRE:'Pre-market session active — moves before the 9:30 AM ET open',
+      REGULAR:'Regular trading hours — market is currently open',
+      POST:'Post-market session active — moves after the 4:00 PM ET close',
+      CLOSED:'Market closed'
+    };
+    const sd = stateDesc[ms]||'';
+    sub.innerHTML = `Intel captured: <strong>${ts}</strong>${sd?` &nbsp;·&nbsp; <span style="color:var(--gold)">${sd}</span>`:''}`;
+  }
 }
 
 // ── Hidden Gems ───────────────────────────────────────────────────────────────
@@ -871,7 +909,6 @@ function drawPicks(recs){
     const tr = document.createElement('tr');
     const tvd = tvTech[r.ticker]||{};
     const tvLbl = tvd.tv_rec_label||'';
-    const tvCls = tvLbl==='STRONG_BUY'?'tv-sb':tvLbl==='BUY'?'tv-b':tvLbl==='STRONG_SELL'?'tv-ss':tvLbl==='SELL'?'tv-s':'';
     const buzzHtml = bMap[r.ticker]?`<div style="font-size:10px;color:var(--purple)">🔥${bMap[r.ticker]}</div>`:'';
     // Target cell: analyst mean if available, else recommendation's target_price (52w hi fallback)
     const tgts = D.analyst_targets||{};
@@ -892,7 +929,7 @@ function drawPicks(recs){
       <td class="td-price c-dim">${price!=null?fmtPrice(price):'–'}</td>
       <td class="td-chg ${chgClass(chg??0)}">${chg!=null?pct(chg):'–'}</td>
       <td><span class="td-tier ${tierClass(r.tier)}">${r.tier}</span>${buzzHtml}</td>
-      <td>${tvCls?`<span class="tv-badge ${tvCls}">${tvLbl.replace('_',' ')}</span>`:'<span class="c-dim">–</span>'}</td>
+      <td>${tvBadge(tvLbl)||'<span class="c-dim">–</span>'}</td>
       <td class="tv-rsi ${tvd.rsi!=null&&tvd.rsi<30?'tv-rsi-low':tvd.rsi>70?'tv-rsi-high':''}">${tvd.rsi!=null?Math.round(tvd.rsi):'–'}</td>
       <td class="td-score">${fmt(r.composite_score,3)}</td>
       <td style="font-size:12px;white-space:nowrap">${tgtHtml}</td>
@@ -1095,30 +1132,72 @@ function renderSignals(){
 }
 
 // ── Headlines ─────────────────────────────────────────────────────────────────
+// ── News feed state ───────────────────────────────────────────────────────────
+let _newsActiveSrc = 'ALL';
+let _newsActiveSent = 'all';
+
+function newsFilter(type, val, btn){
+  if(type==='src')  _newsActiveSrc  = val;
+  if(type==='sent') _newsActiveSent = val;
+  // deactivate siblings
+  const bar = btn.parentElement;
+  bar.querySelectorAll('.src-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  _renderNewsList();
+}
+
 function renderHeadlines(){
-  function buildList(articles, el){
-    el.innerHTML='';
-    articles.slice(0,8).forEach(a=>{
-      const sc = a.score||a.sentiment_score||0;
-      const color = sc>0?'var(--green)':'var(--red)';
-      const link = document.createElement('a');
-      link.className='headline-item';
-      link.href = a.link||'#';
-      link.target='_blank';
-      link.rel='noopener';
-      link.style.borderLeftColor=color;
-      link.innerHTML=`
-        <div class="hl-score" style="color:${color}">${sc>=0?'+':''}${fmt(sc,2)}</div>
-        <div class="hl-body">
-          <div class="hl-title">${a.title||''}</div>
-          <div class="hl-meta">${a.source||''} · ${(a.tickers||[]).slice(0,3).join(', ')}</div>
+  // Build all articles list from recent_articles (sorted newest first)
+  const all = (D.recent_articles||[]).slice().sort((a,b)=>(b.pub_date||'').localeCompare(a.pub_date||''));
+
+  // Build source filter chips
+  const sources = ['ALL', ...new Set(all.map(a=>a.source||'Unknown').filter(Boolean).sort())];
+  const sf = $('sourceFilter');
+  sf.innerHTML = sources.map(s=>`
+    <button class="src-btn${s==='ALL'?' active':''}" onclick="newsFilter('src','${s.replace(/'/g,"\\'").replace(/"/g,'&quot;')}',this)">${s}</button>
+  `).join('');
+
+  // Update count label
+  $('newsCountLabel').textContent = `${all.length} ARTICLES · ${sources.length-1} SOURCES`;
+  _renderNewsList();
+}
+
+function _renderNewsList(){
+  const all = (D.recent_articles||[]).slice().sort((a,b)=>(b.pub_date||'').localeCompare(a.pub_date||''));
+  const list = $('newsList');
+  if(!list) return;
+
+  const filtered = all.filter(a=>{
+    const src   = a.source||'Unknown';
+    const sc    = a.sentiment_score??a.score??0;
+    const srcOk = _newsActiveSrc==='ALL' || src===_newsActiveSrc;
+    const sentOk= _newsActiveSent==='all' ||
+                  (_newsActiveSent==='bull' && sc>0.05) ||
+                  (_newsActiveSent==='bear' && sc<-0.05);
+    return srcOk && sentOk;
+  });
+
+  list.innerHTML = filtered.slice(0,40).map(a=>{
+    const sc    = a.sentiment_score??a.score??0;
+    const color = sc> 0.05?'var(--green)':sc<-0.05?'var(--red)':'var(--dim)';
+    const sentLabel = sc>0.05?'▲':sc<-0.05?'▼':'—';
+    const tickers = (a.tickers||[]).slice(0,4).map(t=>`<span class="news-ticker-tag">${t}</span>`).join('');
+    const dateStr = a.pub_date ? a.pub_date.substring(0,16).replace('T',' ') : '';
+    return `
+      <a class="news-item" href="${a.link||'#'}" target="_blank" rel="noopener" style="border-left-color:${color}">
+        <div class="news-score" style="color:${color}">${sentLabel} ${Math.abs(sc).toFixed(2)}</div>
+        <div class="news-body">
+          <div class="news-title">${a.title||''}</div>
+          <div class="news-meta">
+            <span class="news-src">${a.source||''}</span>
+            ${dateStr?`<span>${dateStr} UTC</span>`:''}
+            ${tickers?`<div class="news-tickers">${tickers}</div>`:''}
+          </div>
         </div>
-      `;
-      el.appendChild(link);
-    });
-  }
-  buildList(D.top_bullish||[], $('bullishList'));
-  buildList(D.top_bearish||[], $('bearishList'));
+      </a>`;
+  }).join('');
+
+  if(!filtered.length) list.innerHTML='<div style="color:var(--dim);padding:16px;text-align:center;font-size:12px">No articles match this filter.</div>';
 }
 
 
