@@ -469,7 +469,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-si
 <!-- SECTION 2: PRE / POST MARKET MOVERS -->
 <div class="section" id="moversSection">
   <div class="section-title">⚡ EXTENDED HOURS MOVERS <span id="marketStatePill"></span>
-    <span class="info-icon" data-tip="Stocks moving ±1.5% or more outside regular trading hours.&#10;&#10;Pre-market:  4:00 AM – 9:30 AM ET&#10;Regular:     9:30 AM – 4:00 PM ET&#10;Post-market: 4:00 PM – 8:00 PM ET&#10;&#10;These moves often signal earnings reactions,&#10;breaking news, or sector rotation before the open.">?</span>
+    <span class="info-icon" data-tip="Stocks moving ±1.5% or more outside regular trading hours.&#10;&#10;Pre-market:  4:00 PM – 9:30 PM SGT&#10;Regular:     9:30 PM – 4:00 AM SGT (+1)&#10;Post-market: 4:00 AM – 8:00 AM SGT (+1)&#10;&#10;These moves often signal earnings reactions,&#10;breaking news, or sector rotation before the open.">?</span>
   </div>
   <p class="section-sub" id="moverSubtitle"></p>
   <div class="movers-grid" id="moversGrid"></div>
@@ -811,17 +811,17 @@ function renderMovers(){
     return div;
   }
 
-  grid.appendChild(buildPanel('▲ PRE-MARKET MOVERS  (4:00 AM – 9:30 AM ET)', pre, 'var(--green)'));
-  grid.appendChild(buildPanel('◉ POST-MARKET MOVERS (4:00 PM – 8:00 PM ET)', post, 'var(--blue)'));
+  grid.appendChild(buildPanel('▲ PRE-MARKET MOVERS  (4:00 PM – 9:30 PM SGT)', pre, 'var(--green)'));
+  grid.appendChild(buildPanel('◉ POST-MARKET MOVERS (4:00 AM – 8:00 AM SGT)', post, 'var(--blue)'));
 
   // Subtitle: intel time + active session context
   const sub = $('moverSubtitle');
   if(sub){
     const ts = D.generated_at_sgt||'';
     const stateDesc = {
-      PRE:'Pre-market session active — moves before the 9:30 AM ET open',
+      PRE:'Pre-market session active — moves before the 9:30 PM SGT open',
       REGULAR:'Regular trading hours — market is currently open',
-      POST:'Post-market session active — moves after the 4:00 PM ET close',
+      POST:'Post-market session active — moves after the 4:00 AM SGT close',
       CLOSED:'Market closed'
     };
     const sd = stateDesc[ms]||'';
