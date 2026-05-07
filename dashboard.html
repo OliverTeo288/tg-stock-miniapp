@@ -134,6 +134,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-si
 .pick-ticker{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text)}
 .pick-price{font-family:var(--mono);font-size:14px;color:var(--dim)}
 .pick-score{font-family:var(--mono);font-size:12px}
+.pick-buzz{font-size:11px;font-family:var(--mono);margin-top:2px}
 .pick-sector{font-size:11px;color:var(--dim);margin-top:auto}
 .pick-rationale{font-size:11px;color:var(--dim);border-top:1px solid var(--border);padding-top:6px;margin-top:4px}
 .pick-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
@@ -571,6 +572,14 @@ function renderHeader(){
     pills += `<span class="pill ${vc}">VIX ${fmt(ms.vix,1)} · ${ms.vix_label||''}</span>`;
   }
 
+  // Fear & Greed pill
+  const fg = D.fear_greed||{};
+  if(fg.value!=null){
+    const fv = fg.value;
+    const fc = fv<=25?'pill-red':fv<=45?'pill-gold':fv<=55?'pill-dim':fv<=75?'pill-green':'pill-cyan';
+    pills += `<span class="pill ${fc}" title="CNN Fear &amp; Greed Index">F&amp;G ${fv} · ${fg.label||''}</span>`;
+  }
+
   // Article count
   pills += `<span class="pill pill-dim">${ms.total_articles||0} ARTICLES</span>`;
 
@@ -592,6 +601,9 @@ function renderHero(){
   if(!picks.length){ wrap.innerHTML='<p class="c-dim" style="padding:20px">No picks available</p>'; return; }
 
   const prices = D.prices||{};
+  // Build Reddit buzz lookup: ticker → {mentions, rank}
+  const buzzMap = {};
+  (D.reddit_buzz||[]).forEach(b=>{ buzzMap[b.ticker]={mentions:b.mentions,rank:b.rank}; });
 
   // Hero card (#1)
   const p = picks[0];
@@ -613,6 +625,9 @@ function renderHero(){
     const rsiStr = tvp.rsi!=null?` · RSI ${Math.round(tvp.rsi)}`:'';
     metaHtml += `<div class="hero-metric"><div class="hero-metric-val"><span class="tv-badge ${tvCls}">${tvp.tv_rec_label.replace('_',' ')}</span></div><div class="hero-metric-lbl">TV Signal${rsiStr}</div></div>`;
   }
+  // Reddit buzz metric for hero pick
+  const hbuzz = buzzMap[p.ticker];
+  if(hbuzz) metaHtml += `<div class="hero-metric"><div class="hero-metric-val c-purple">🔥 ${hbuzz.mentions}</div><div class="hero-metric-lbl">WSB Mentions</div></div>`;
 
   const ratHtml = (p.rationale||[]).map(r=>`<li>${r}</li>`).join('');
   const tagsHtml = (p.signal_tags||[]).slice(0,4).map(t=>`<span class="pick-tag">${t}</span>`).join('');
@@ -643,6 +658,7 @@ function renderHero(){
       ${preHtml}
       <div class="pick-score c-cyan">Score: ${fmt(p.buy_score,3)}</div>
       ${(()=>{const tvd=(tvTech[p.ticker]||{});const lbl=tvd.tv_rec_label||'';const cls=lbl==='STRONG_BUY'?'tv-sb':lbl==='BUY'?'tv-b':lbl==='STRONG_SELL'?'tv-ss':lbl==='SELL'?'tv-s':'';const rsi=tvd.rsi!=null?` RSI ${Math.round(tvd.rsi)}`:'';return cls?`<div class="tv-sig"><span class="tv-badge ${cls}">${lbl.replace('_',' ')}</span><span class="tv-rsi">${rsi}</span></div>`:'';})()}
+      ${(()=>{const bz=buzzMap[p.ticker];return bz?`<div class="pick-buzz c-purple">🔥 ${bz.mentions} WSB</div>`:''})()}
       <div class="pick-tags">${(p.signal_tags||[]).slice(0,2).map(t=>`<span class="pick-tag">${t}</span>`).join('')}</div>
       <div class="pick-sector c-dim">${p.sector||''}</div>
       <div class="pick-rationale">${(p.rationale||[])[0]||''}</div>
@@ -759,6 +775,8 @@ function drawPicks(recs){
   const body = $('picksBody');
   body.innerHTML='';
   const prices = D.prices||{};
+  const bMap = {};
+  (D.reddit_buzz||[]).forEach(b=>{bMap[b.ticker]=b.mentions;});
   recs.slice(0,100).forEach(r=>{
     const pd = prices[r.ticker]||{};
     const price = pd.price;
@@ -769,11 +787,12 @@ function drawPicks(recs){
     const tvd = tvTech[r.ticker]||{};
     const tvLbl = tvd.tv_rec_label||'';
     const tvCls = tvLbl==='STRONG_BUY'?'tv-sb':tvLbl==='BUY'?'tv-b':tvLbl==='STRONG_SELL'?'tv-ss':tvLbl==='SELL'?'tv-s':'';
+    const buzzHtml = bMap[r.ticker]?`<div style="font-size:10px;color:var(--purple)">🔥${bMap[r.ticker]}</div>`:'';
     tr.innerHTML=`
       <td class="td-ticker">${r.ticker}${preChg!=null?`<div style="font-size:10px;font-family:var(--mono);color:${preChg>0?'var(--green)':'var(--red)'}">Pre: ${pct(preChg)}</div>`:''}</td>
       <td class="td-price c-dim">${price!=null?fmtPrice(price):'–'}</td>
       <td class="td-chg ${chgClass(chg??0)}">${chg!=null?pct(chg):'–'}</td>
-      <td><span class="td-tier ${tierClass(r.tier)}">${r.tier}</span></td>
+      <td><span class="td-tier ${tierClass(r.tier)}">${r.tier}</span>${buzzHtml}</td>
       <td>${tvCls?`<span class="tv-badge ${tvCls}">${tvLbl.replace('_',' ')}</span>`:'<span class="c-dim">–</span>'}</td>
       <td class="tv-rsi ${tvd.rsi!=null&&tvd.rsi<30?'tv-rsi-low':tvd.rsi>70?'tv-rsi-high':''}">${tvd.rsi!=null?Math.round(tvd.rsi):'–'}</td>
       <td class="td-score">${fmt(r.composite_score,3)}</td>
