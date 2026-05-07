@@ -454,6 +454,22 @@ function renderBao() {
   const leadBuzz = baoMap[lead.ticker];
   const leadBuzzTag = leadBuzz ? `<span class="tag tag-catalyst">🔥 ${leadBuzz} WSB</span>` : '';
 
+  // Analyst / technical target for lead pick
+  const atgts = D.analyst_targets || {};
+  const leadTgt = atgts[lead.ticker];
+  const leadCur = lead.price;
+  let leadTgtHtml = '';
+  if(leadTgt && leadTgt.target_mean){
+    const up = leadCur ? ((leadTgt.target_mean - leadCur) / leadCur * 100) : null;
+    const upStr = up != null ? (up >= 0 ? `+${up.toFixed(1)}%` : `${up.toFixed(1)}%`) : '';
+    const upColor = up != null ? (up >= 0 ? 'var(--bull)' : 'var(--bear)') : 'var(--muted)';
+    const ac = leadTgt.analyst_count ? ` · ${leadTgt.analyst_count} analysts` : '';
+    leadTgtHtml = `<div style="font-family:var(--mono);font-size:13px;margin:8px 0 4px;color:var(--watch)">Target <span style="font-size:17px;font-weight:700">${fmtPrice(leadTgt.target_mean)}</span> <span style="color:${upColor};font-size:12px">${upStr}${ac}</span></div>`;
+  } else if(lead.target_price && leadCur){
+    const up2 = ((lead.target_price - leadCur) / leadCur * 100).toFixed(1);
+    leadTgtHtml = `<div style="font-family:var(--mono);font-size:12px;margin:6px 0 4px;color:var(--muted)">52W Hi ${fmtPrice(lead.target_price)} <span style="color:var(--bull)">+${up2}%</span></div>`;
+  }
+
   el('bao-lead').innerHTML = `
     <div class="bao-card">
       <div class="bao-rank">#1 · Top Pick Today</div>
@@ -462,6 +478,7 @@ function renderBao() {
         <span class="bao-price">${fmtPrice(lead.price)}</span>
         <span class="bao-chg ${lChg.cls}">${lChg.str}</span>
       </div>
+      ${leadTgtHtml}
       <div class="score-row">
         <div class="score-bar"><div class="score-fill" style="width:${scoreBarW(lead.buy_score)}%"></div></div>
         <span class="score-lbl">Score ${lead.buy_score?.toFixed(3)}</span>
@@ -482,6 +499,18 @@ function renderBao() {
     const [cls, lbl] = tierTag(p.tier).split(' ').reduce((a,v,i) => i===0?[v,a[1]]:[a[0],a[1]+' '+v], ['','']);
     const top1 = (p.rationale||p.reasons||[])[0] || '';
     const subBuzz = baoMap[p.ticker];
+    const subTgt = atgts[p.ticker];
+    const subCur = p.price;
+    let subTgtStr = '';
+    if(subTgt && subTgt.target_mean){
+      const sup = subCur ? ((subTgt.target_mean - subCur) / subCur * 100) : null;
+      const supStr = sup != null ? (sup >= 0 ? `+${sup.toFixed(1)}%` : `${sup.toFixed(1)}%`) : '';
+      const supColor = sup != null ? (sup >= 0 ? 'var(--bull)' : 'var(--bear)') : 'var(--muted)';
+      subTgtStr = `<div style="font-size:10px;font-family:var(--mono);color:var(--watch);margin-top:2px">→ ${fmtPrice(subTgt.target_mean)} <span style="color:${supColor}">${supStr}</span></div>`;
+    } else if(p.target_price && subCur){
+      const sup2 = ((p.target_price - subCur) / subCur * 100).toFixed(1);
+      subTgtStr = `<div style="font-size:10px;font-family:var(--mono);color:var(--faint);margin-top:2px">52W→ ${fmtPrice(p.target_price)} +${sup2}%</div>`;
+    }
     return `
       <div class="pick-row">
         <div class="pick-rk">#${i+2}</div>
@@ -492,6 +521,7 @@ function renderBao() {
             ${subBuzz?`<span style="font-size:10px;color:#ce93d8">🔥${subBuzz}</span>`:''}
           </div>
           ${top1 ? `<div class="pick-reason">${top1}</div>` : ''}
+          ${subTgtStr}
         </div>
         <div class="pick-right">
           <div class="pick-price">${fmtPrice(p.price)}</div>
