@@ -58,19 +58,6 @@ body{
   border:1px solid var(--border);color:var(--text);background:var(--card);
 }
 
-/* ── Refresh button ── */
-.rfr-btn{
-  font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;
-  border:1px solid var(--border);background:var(--card);color:var(--text);
-  cursor:pointer;display:flex;align-items:center;gap:4px;
-  transition:background .2s,color .2s;
-}
-.rfr-btn:active{background:var(--accent);color:#000;}
-.rfr-btn.loading{opacity:.6;pointer-events:none;}
-.rfr-btn.success{border-color:#00c853;color:#00c853;}
-.rfr-btn.error{border-color:#ff4444;color:#ff4444;}
-.rfr-spin{display:inline-block;transition:transform .3s;}
-.rfr-btn.loading .rfr-spin{animation:spin 1s linear infinite;}
 
 /* ── Section titles ── */
 .sec{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;
@@ -239,12 +226,7 @@ body{
     <div class="hdr-title">📊 Market Intel</div>
     <div class="hdr-sub" id="hdr-sub">Loading…</div>
   </div>
-  <div style="display:flex;align-items:center;gap:6px">
-    <button class="rfr-btn" id="rfrBtn" onclick="triggerRefresh()">
-      <span class="rfr-spin">⟳</span><span id="rfrLbl">REFRESH</span>
-    </button>
-    <div class="mkt-badge" id="mkt-badge">—</div>
-  </div>
+  <div class="mkt-badge" id="mkt-badge">—</div>
 </div>
 
 <!-- ── Tab pages ── -->
@@ -279,6 +261,7 @@ body{
       <svg id="gauge-svg" viewBox="0 0 220 120" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:220px;height:auto;display:block;margin:auto"></svg>
       <div class="gauge-lbl" id="gauge-lbl">—</div>
       <div class="gauge-score" id="gauge-score">Score: —</div>
+      <div id="gauge-breakdown" style="font-size:9px;color:var(--faint);margin:4px 0 2px;font-family:var(--mono);letter-spacing:.3px"></div>
       <div class="stat-grid">
         <div class="stat-box bull"><div class="stat-n bull" id="bull-n">—</div><div class="stat-l">Bullish</div></div>
         <div class="stat-box neut"><div class="stat-n neut" id="neut-n">—</div><div class="stat-l">Neutral</div></div>
@@ -606,6 +589,14 @@ function renderGauge() {
 
   el('gauge-lbl').textContent   = ms.label || '—';
   el('gauge-score').textContent = `Score: ${score >= 0 ? '+' : ''}${score.toFixed(4)}`;
+  // Signal breakdown: news / TV / momentum
+  const _brkEl = document.getElementById('gauge-breakdown');
+  if(_brkEl) {
+    const _st = ms.score_text!=null ? `News ${ms.score_text>=0?'+':''}${ms.score_text.toFixed(3)}` : '';
+    const _sv = ms.score_tv!=null   ? `TV ${ms.score_tv>=0?'+':''}${ms.score_tv.toFixed(3)}`       : '';
+    const _sm = ms.score_momentum!=null ? `Mom ${ms.score_momentum>=0?'+':''}${ms.score_momentum.toFixed(3)}` : '';
+    _brkEl.textContent = [_st,_sv,_sm].filter(Boolean).join(' · ');
+  }
   el('bull-n').textContent  = ms.bull_count    || 0;
   el('neut-n').textContent  = ms.neutral_count || 0;
   el('bear-n').textContent  = ms.bear_count    || 0;
@@ -863,41 +854,6 @@ renderSectors();
 renderGauge();
 renderInfluencers();
 renderHeadlines();
-
-// ── Refresh button ─────────────────────────────────────────────────────────
-const _TG_TASK_ID = 'market-intel-open';
-
-async function triggerRefresh() {
-  const btn = document.getElementById('rfrBtn');
-  const lbl = document.getElementById('rfrLbl');
-  if (!btn || btn.classList.contains('loading')) return;
-
-  btn.classList.add('loading');
-  btn.classList.remove('success', 'error');
-  lbl.textContent = 'PULLING…';
-
-  try {
-    if (typeof window.cowork?.runScheduledTask === 'function') {
-      await window.cowork.runScheduledTask(_TG_TASK_ID);
-      btn.classList.remove('loading');
-      btn.classList.add('success');
-      lbl.textContent = '✓ RUNNING';
-      setTimeout(() => {
-        btn.classList.remove('success');
-        lbl.textContent = 'REFRESH';
-      }, 8000);
-    } else {
-      // Not in Cowork — graceful fallback
-      btn.classList.remove('loading');
-      lbl.textContent = 'REFRESH';
-    }
-  } catch(e) {
-    btn.classList.remove('loading');
-    btn.classList.add('error');
-    lbl.textContent = 'ERROR';
-    setTimeout(() => { btn.classList.remove('error'); lbl.textContent = 'REFRESH'; }, 4000);
-  }
-}
 
 </script>
 </body>
