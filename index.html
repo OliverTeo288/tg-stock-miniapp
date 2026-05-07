@@ -62,6 +62,9 @@ body{
 /* ── Section titles ── */
 .sec{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;
      color:var(--muted);margin:16px 0 8px;padding:0 2px;display:flex;align-items:center;gap:6px}
+.sec-sub{font-size:10px;color:var(--faint);padding:0 0 8px;line-height:1.4}
+.src-chip{display:inline-block;font-size:9px;padding:2px 7px;border-radius:10px;border:1px solid var(--border);color:var(--muted);cursor:pointer;margin:2px 3px 2px 0}
+.src-chip.active{background:var(--conv);color:#000;border-color:var(--conv)}
 .sec::after{content:'';flex:1;height:1px;background:var(--border)}
 
 /* ── Cards ── */
@@ -232,17 +235,21 @@ body{
 <!-- ── Tab pages ── -->
 <div class="page active" id="pg-picks">
   <div class="sec">🎯 Buy at Open</div>
+  <div class="sec-sub">Top picks for the NYSE open (9:30 AM ET). Scored on momentum, TV signal, sentiment &amp; volume.</div>
   <div id="bao-lead"></div>
   <div class="card" id="bao-subs" style="padding:8px 14px"></div>
 
   <div class="sec">💎 Hidden Gems</div>
+  <div class="sec-sub">High-signal stocks that are under-covered or under-priced — strong conviction but outside the spotlight.</div>
   <div id="gems-list"></div>
 </div>
 
 <div class="page" id="pg-movers">
   <div class="sec">⚡ Pre-Market Movers</div>
+  <div class="sec-sub">Stocks moving ≥1.5% before the 9:30 AM ET open (4:00–9:30 AM ET).</div>
   <div id="pre-movers-list"></div>
   <div class="sec">🌙 Post-Market Movers</div>
+  <div class="sec-sub">Stocks moving after the 4:00 PM ET close (4:00–8:00 PM ET). Often driven by earnings.</div>
   <div id="post-movers-list"></div>
 </div>
 
@@ -274,6 +281,7 @@ body{
   <div class="card" id="inf-list"></div>
 
   <div class="sec">📰 Top Headlines</div>
+  <div id="hl-src-chips" style="padding:0 0 6px"></div>
   <div class="card" id="hl-list"></div>
 </div>
 
@@ -337,6 +345,22 @@ if (twa) {
 // _ALLOWED_IDS is baked in by market_intel.py from telegram_config.json
 // Empty list = no restriction (fallback before first setup)
 const _ALLOWED_IDS = [287006350, 49372276, 188485747];
+
+// ── TV signal helpers ─────────────────────────────────────────────────────────
+const TV_TIPS = {
+  STRONG_BUY:  'TradingView STRONG BUY: Nearly all technical indicators bullish — moving averages, RSI, MACD all aligned upward.',
+  BUY:         'TradingView BUY: Majority of indicators bullish. Moderate upward momentum.',
+  NEUTRAL:     'TradingView NEUTRAL: Mixed signals. No clear directional bias.',
+  SELL:        'TradingView SELL: Majority of indicators bearish. Downward pressure.',
+  STRONG_SELL: 'TradingView STRONG SELL: Nearly all indicators bearish — significant downward pressure.',
+};
+function tvBadgeTg(lbl) {
+  if (!lbl || lbl === 'NEUTRAL') return '';
+  const cls = lbl === 'STRONG_BUY' ? 'tv-sb' : lbl === 'BUY' ? 'tv-b' : lbl === 'STRONG_SELL' ? 'tv-ss' : 'tv-s';
+  const tip = TV_TIPS[lbl] || '';
+  const short = lbl === 'STRONG_BUY' ? '▲ SB' : lbl === 'BUY' ? '▲ B' : lbl === 'STRONG_SELL' ? '▼ SS' : '▼ S';
+  return `<span class="tv-badge ${cls}" title="${tip}">${short}</span>`;
+}
 
 (function _authCheck() {
   if (!_ALLOWED_IDS.length) return;  // unrestricted
@@ -540,18 +564,36 @@ function renderGems() {
     return;
   }
   const prices = D.prices || {};
+  const atgts  = D.analyst_targets || {};
   el('gems-list').innerHTML = gems.slice(0,6).map(g => {
-    const pd  = prices[g.ticker] || {};
-    const chg = fmtChg(pd.change_pct);
+    const pd   = prices[g.ticker] || {};
+    const chg  = fmtChg(pd.change_pct);
+    const tBdg = tvBadgeTg(g.tv_rec_label || (D.tv_technicals||{})[g.ticker]?.tv_rec_label);
+    const tgt  = atgts[g.ticker];
+    const cur  = pd.price || g.price;
+    let tgtStr = '';
+    if (tgt && tgt.target_mean) {
+      const up = cur ? ((tgt.target_mean - cur) / cur * 100) : null;
+      const upStr = up != null ? (up >= 0 ? `+${up.toFixed(1)}%` : `${up.toFixed(1)}%`) : '';
+      const upColor = up != null ? (up >= 0 ? 'var(--bull)' : 'var(--bear)') : 'var(--muted)';
+      tgtStr = `<div style="font-size:10px;font-family:var(--mono);color:var(--watch);margin:4px 0">→ ${fmtPrice(tgt.target_mean)} <span style="color:${upColor}">${upStr}</span> · ${tgt.analyst_count||'?'} analysts</div>`;
+    } else if (g.target_price && cur) {
+      const up2 = ((g.target_price - cur) / cur * 100).toFixed(1);
+      tgtStr = `<div style="font-size:10px;font-family:var(--mono);color:var(--faint);margin:4px 0">52W Hi → ${fmtPrice(g.target_price)} +${up2}%</div>`;
+    }
     const reasons = (g.reasons || []).slice(0,2).map(r => `<li>${r}</li>`).join('');
     return `
       <div class="gem-card">
-        <div class="gem-ticker">💎 ${g.ticker}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="gem-ticker">💎 ${g.ticker}</div>
+          ${tBdg}
+        </div>
         <div class="gem-meta">
           ${fmtPrice(pd.price)} <span class="bao-chg ${chg.cls}">${chg.str}</span>
-          &nbsp;·&nbsp; Sentiment: ${g.sentiment_score > 0 ? '+' : ''}${g.sentiment_score?.toFixed(3)}
+          &nbsp;·&nbsp; Score: ${g.composite_score?.toFixed(3)||g.sentiment_score?.toFixed(3)||'—'}
           &nbsp;·&nbsp; ${g.mention_count} article${g.mention_count !== 1 ? 's' : ''}
         </div>
+        ${tgtStr}
         <ul class="reasons">${reasons}</ul>
       </div>`;
   }).join('');
@@ -717,23 +759,52 @@ function renderInfluencers() {
 }
 
 // ── Headlines ─────────────────────────────────────────────────────────────────
+let _hlActiveSrc = 'ALL';
+let _hlActiveSent = 'all';
+
 function renderHeadlines() {
-  const bull = D.top_bullish || [];
-  const bear = D.top_bearish || [];
-  const all  = [...bull, ...bear].sort((a,b) => Math.abs(b.score) - Math.abs(a.score)).slice(0,8);
-  el('hl-list').innerHTML = all.map(h => {
+  // Build article pool: recent_articles (all) or fall back to top_bullish/bearish
+  const allArts = (D.recent_articles || [...(D.top_bullish||[]), ...(D.top_bearish||[])]);
+  // Build unique source list
+  const srcs = ['ALL', ...new Set(allArts.map(a => a.source).filter(Boolean))].slice(0, 10);
+  // Render source chips
+  const chips = el('hl-src-chips');
+  if (chips) {
+    chips.innerHTML = srcs.map(s =>
+      `<span class="src-chip${s === _hlActiveSrc ? ' active' : ''}" onclick="hlFilter('${s}')">${s}</span>`
+    ).join('');
+  }
+  _renderHlList(allArts);
+}
+
+function hlFilter(src) {
+  _hlActiveSrc = src;
+  // Re-render chips
+  const chips = el('hl-src-chips');
+  if (chips) chips.querySelectorAll('.src-chip').forEach(c => {
+    c.classList.toggle('active', c.textContent === src);
+  });
+  const allArts = (D.recent_articles || [...(D.top_bullish||[]), ...(D.top_bearish||[])]);
+  _renderHlList(allArts);
+}
+
+function _renderHlList(allArts) {
+  const filtered = (_hlActiveSrc === 'ALL' ? allArts : allArts.filter(a => a.source === _hlActiveSrc))
+    .slice(0, 30);
+  el('hl-list').innerHTML = filtered.length ? filtered.map(h => {
     const sc  = h.score || 0;
     const cls = sc > 0.1 ? 'bull' : sc < -0.1 ? 'bear' : 'neut';
     const lbl = sc > 0.1 ? '▲' : sc < -0.1 ? '▼' : '→';
     return `
       <div class="hl-item">
-        <div class="hl-title"><a href="${h.link}" style="color:var(--text);text-decoration:none">${h.title}</a></div>
-        <div class="hl-meta">
-          <span class="hl-src">${h.source}</span>
+        <div class="hl-title"><a href="${h.link||'#'}" style="color:var(--text);text-decoration:none;line-height:1.4">${h.title}</a></div>
+        <div class="hl-meta" style="margin-top:4px">
+          <span class="hl-src">${h.source||'—'}</span>
           <span class="pill ${cls}">${lbl} ${sc.toFixed(3)}</span>
+          ${(h.tickers||[]).slice(0,3).map(t=>`<span style="font-size:9px;font-weight:700;color:var(--conv)">${t}</span>`).join('')}
         </div>
       </div>`;
-  }).join('');
+  }).join('') : '<div style="text-align:center;padding:16px;color:var(--faint);font-size:12px">No articles for this source.</div>';
 }
 
 // ── Header ────────────────────────────────────────────────────────────────────
@@ -741,7 +812,11 @@ function renderHeader() {
   const ms    = D.market_sentiment || {};
   const score = ms.score || 0;
   const icon  = score >= 0.25 ? '🐂' : score >= 0.10 ? '📈' : score <= -0.25 ? '🐻' : score <= -0.10 ? '📉' : '➡️';
-  el('hdr-sub').textContent  = `${D.generated_at_sgt || '—'} · ${ms.total_articles || 0} articles`;
+  // Data freshness
+  const genSgt = D.generated_at_sgt || '';
+  const state  = (D.premarket_picks || {}).market_state || '';
+  const stateStr = state === 'pre' ? ' · Pre-Market' : state === 'post' ? ' · Post-Market' : state === 'open' ? ' · Market Open' : '';
+  el('hdr-sub').textContent  = `${genSgt || '—'} · ${ms.total_articles || 0} articles${stateStr}`;
   el('mkt-badge').textContent = `${icon} ${score >= 0 ? '+' : ''}${score.toFixed(3)}`;
 }
 
@@ -872,11 +947,7 @@ function renderStocksTab() {
 
       // TV signal badge
       const tvLabel = td.tv_rec_label || '';
-      let tvBadge = '';
-      if      (tvLabel === 'STRONG_BUY')  tvBadge = `<span class="tv-badge tv-sb">▲ SB</span>`;
-      else if (tvLabel === 'BUY')         tvBadge = `<span class="tv-badge tv-b">▲ B</span>`;
-      else if (tvLabel === 'STRONG_SELL') tvBadge = `<span class="tv-badge tv-ss">▼ SS</span>`;
-      else if (tvLabel === 'SELL')        tvBadge = `<span class="tv-badge tv-s">▼ S</span>`;
+      const tvBadge = tvBadgeTg(tvLabel);
 
       // RSI badge
       const rsi = td.rsi != null ? Math.round(td.rsi) : null;
