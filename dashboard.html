@@ -287,6 +287,9 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-si
 .geo-bearish{background:rgba(255,77,94,.12);color:var(--red);border:1px solid rgba(255,77,94,.2)}
 .geo-score-bar{height:3px;border-radius:2px;background:var(--bg3);margin-top:8px;overflow:hidden}
 .geo-score-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--green2),var(--green))}
+.geo-risk-badge{font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;color:#fff;margin-left:6px;vertical-align:middle}
+.geo-risk-HIGH{background:var(--red)}.geo-risk-MEDIUM{background:#cc8800}.geo-risk-LOW{background:var(--green2)}
+.geo-summary{font-size:10px;color:var(--dim);margin:4px 0 6px;line-height:1.4}
 
 /* ── Price grid ───────────────────────────────────────────── */
 .price-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
@@ -1070,15 +1073,18 @@ function renderGeo(){
   const _ro = {HIGH:1,MEDIUM:2,LOW:3};
   active.sort((a,b)=>(_ro[a[1].risk_level]??9)-(_ro[b[1].risk_level]??9));
   active.forEach(([name,s])=>{
-    const score = s.score||0;
+    const score = s.avg_sentiment ?? s.score ?? 0;   // avg_sentiment is the correct field
     const barW = Math.round(Math.min(100,Math.abs(score)*500));
+    const risk  = s.risk_level || 'MEDIUM';
+    const riskEmoji = {HIGH:'🔴',MEDIUM:'🟡',LOW:'🟢'}[risk]||'⚪';
     const bullTks = (s.bullish_tickers||[]).slice(0,6);
     const bearTks = (s.bearish_tickers||[]).slice(0,6);
     const card = document.createElement('div');
     card.className='geo-card';
     card.innerHTML=`
-      <div class="geo-name">${name}</div>
-      <div class="geo-meta">Score: <span class="${chgClass(score)}">${fmt(score,3)}</span> · ${s.article_count||0} articles</div>
+      <div class="geo-name">${riskEmoji} ${name} <span class="geo-risk-badge geo-risk-${risk}">${risk}</span></div>
+      <div class="geo-meta">Sentiment: <span class="${chgClass(score)}">${score>=0?'+':''}${fmt(score,3)}</span> · ${s.article_count||0} articles</div>
+      ${s.summary?`<div class="geo-summary">${s.summary}</div>`:''}
       ${bullTks.length?`<div class="geo-tickers">${bullTks.map(t=>`<span class="geo-tk geo-bullish">▲ ${t}</span>`).join('')}</div>`:''}
       ${bearTks.length?`<div class="geo-tickers">${bearTks.map(t=>`<span class="geo-tk geo-bearish">▼ ${t}</span>`).join('')}</div>`:''}
       <div class="geo-score-bar"><div class="geo-score-fill" style="width:${barW}%;background:${score>=0?'var(--green)':'var(--red)'}"></div></div>
