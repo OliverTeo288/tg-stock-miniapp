@@ -697,8 +697,8 @@ function renderGeo() {
     el('geo-list').innerHTML = '<div style="text-align:center;color:var(--faint);padding:16px;font-size:12px">No active geopolitical events today.</div>';
     return;
   }
-  const riskOrd = {HIGH:0,MEDIUM:1,LOW:2};
-  active.sort((a,b) => (riskOrd[a[1].risk_level]||2) - (riskOrd[b[1].risk_level]||2));
+  const riskOrd = {HIGH:1,MEDIUM:2,LOW:3};  // non-zero so || fallback doesn't corrupt HIGH=0
+  active.sort((a,b) => (riskOrd[a[1].risk_level]??9) - (riskOrd[b[1].risk_level]??9));
   el('geo-list').innerHTML = active.map(([name, sig]) => {
     const bullS = (sig.bullish_sectors||[]).slice(0,2).map(s=>`<span class="geo-bull">↑${s}</span>`).join('');
     const bearS = (sig.bearish_sectors||[]).slice(0,2).map(s=>`<span class="geo-bear">↓${s}</span>`).join('');
