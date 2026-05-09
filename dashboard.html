@@ -1335,29 +1335,51 @@ function _renderNewsList(){
 
 
 // ── Refresh button ────────────────────────────────────────────────────────────
-const TASK_ID = 'market-intel-open';
+// Pick the most appropriate scheduled task based on current SGT time.
+// All tasks run the same market_intel.py script — selection is semantic only.
+// SGT = UTC+8. US market hours in SGT: 9:30 PM – 4:00 AM (next day)
+function _getRefreshTaskId() {
+  const sgtHour = (new Date().getUTCHours() + 8) % 24;
+  const sgtMin  = new Date().getUTCMinutes();
+  const sgtTime = sgtHour * 60 + sgtMin;   // minutes since midnight SGT
+  // 16:30–21:30 SGT → pre-market window (4:30 AM – 9:30 AM ET)
+  if (sgtTime >= 16*60+30 && sgtTime < 21*60+30) return 'daily-market-intel';
+  // 21:30–04:15 SGT (+1) → US market hours (9:30 AM – 4:00 PM ET)
+  if (sgtTime >= 21*60+30 || sgtTime < 4*60+15)  return 'market-intel-open';
+  // 04:15–07:30 SGT → post-close window
+  if (sgtTime >= 4*60+15  && sgtTime < 7*60+30)  return 'market-intel-close';
+  // 07:30–16:30 SGT → daytime / morning briefing
+  return 'market-intel-daily-refresh';
+}
 
 async function triggerRefresh() {
   const btn = document.getElementById('refreshBtn');
   const lbl = document.getElementById('refreshLabel');
   if (!btn || btn.classList.contains('loading')) return;
 
+  const taskId = _getRefreshTaskId();
+  const taskLabel = {
+    'daily-market-intel':        'PRE-MARKET',
+    'market-intel-open':         'MARKET OPEN',
+    'market-intel-close':        'MARKET CLOSE',
+    'market-intel-daily-refresh':'MORNING SCAN',
+  }[taskId] || 'REFRESH';
+
   btn.classList.add('loading');
   btn.classList.remove('success', 'error');
-  lbl.textContent = 'PULLING DATA…';
+  lbl.textContent = `RUNNING ${taskLabel}…`;
 
   try {
     if (typeof window.cowork?.runScheduledTask === 'function') {
-      await window.cowork.runScheduledTask(TASK_ID);
+      await window.cowork.runScheduledTask(taskId);
       btn.classList.remove('loading');
       btn.classList.add('success');
-      lbl.textContent = '✓ RUNNING…';
+      lbl.textContent = `✓ ${taskLabel} QUEUED`;
       setTimeout(() => {
         btn.classList.remove('success');
         lbl.textContent = 'REFRESH DATA';
       }, 8000);
     } else {
-      // Fallback: show instructions if cowork API not available
       btn.classList.remove('loading');
       btn.classList.add('error');
       lbl.textContent = '⚠ RUN MANUALLY';
