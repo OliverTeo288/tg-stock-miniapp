@@ -712,6 +712,7 @@ function renderGeo() {
           <span style="font-size:10px;color:var(--faint);font-weight:400;margin-left:auto">${sig.article_count} art.</span>
         </div>
         <div class="geo-summary">${sig.summary || ''}</div>
+        <div style="font-size:9px;color:var(--faint);margin-bottom:4px">Sentiment: <span style="color:${(sig.avg_sentiment??0)>=0?'var(--bull)':'var(--bear)'}">${(sig.avg_sentiment??0)>=0?'+':''}${((sig.avg_sentiment??0)).toFixed(3)}</span> · ${sig.article_count||0} art.</div>
         <div class="geo-impact">
           ${bullS}${bearS}
           ${bullT ? `<span style="font-size:10px;color:var(--bull);font-weight:700">${bullT}</span>` : ''}
