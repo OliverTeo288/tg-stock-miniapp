@@ -87,7 +87,7 @@ body{
 .bao-chg.up{color:var(--bull)} .bao-chg.dn{color:var(--bear)} .bao-chg.flat{color:var(--neutral)}
 .score-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .score-bar{flex:1;height:5px;background:var(--bao-border);border-radius:3px;overflow:hidden}
-.score-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#7c3aed,#a855f7)}
+.score-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#0097a7,#00e5ff)}
 .score-lbl{font-size:10px;font-weight:800;color:var(--bao)}
 .tags{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}
 .tag{font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px}
@@ -394,7 +394,7 @@ body{
   </button>
   <button class="tbtab" onclick="switchTab('pg-signals',this)">
     <svg viewBox="0 0 24 24"><path d="M3 3h2v18H3zm16 4h2v14h-2zm-8-4h2v18h-2z"/></svg>
-    Signals
+    Market
   </button>
   <button class="tbtab" onclick="switchTab('pg-stocks',this);renderStocksTab()">
     <svg viewBox="0 0 24 24"><path d="M3 13h2v8H3zm4-4h2v12H7zm4-4h2v16h-2zm4 8h2v8h-2zm4-6h2v14h-2z"/></svg>
@@ -907,7 +907,24 @@ function renderHeader() {
   const genSgt = D.generated_at_sgt || '';
   const state  = (D.premarket_picks || {}).market_state || '';
   const stateStr = state === 'pre' ? ' · Pre-Market' : state === 'post' ? ' · Post-Market' : state === 'open' ? ' · Market Open' : '';
-  el('hdr-sub').textContent  = `${genSgt || '—'} · ${ms.total_articles || 0} articles${stateStr}`;
+  // Staleness-aware sub-header
+  let _ageLabel = '';
+  let _ageColor = '';
+  if (genSgt) {
+    const _m = genSgt.match(/(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})/);
+    if (_m) {
+      const _genMs = new Date(_m[1] + 'T' + _m[2] + ':00+08:00').getTime();
+      const _ageMin = Math.round((Date.now() - _genMs) / 60000);
+      if (_ageMin >= 0) {
+        _ageLabel = _ageMin < 60 ? ` · ${_ageMin}m ago` : ` · ${Math.floor(_ageMin/60)}h${_ageMin%60}m ago`;
+        if (_ageMin > 480) _ageColor = 'var(--bear)';
+        else if (_ageMin > 120) _ageColor = 'var(--watch)';
+      }
+    }
+  }
+  const _sub = el('hdr-sub');
+  _sub.textContent = `${genSgt || '—'} · ${ms.total_articles || 0} articles${stateStr}${_ageLabel}`;
+  if (_ageColor) _sub.style.color = _ageColor;
   el('mkt-badge').textContent = `${icon} ${score >= 0 ? '+' : ''}${score.toFixed(3)}`;
 }
 
