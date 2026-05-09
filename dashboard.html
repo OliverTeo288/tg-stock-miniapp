@@ -29,6 +29,7 @@
   --orange:   #ffab40;
   --mono:     'SF Mono','Fira Mono','Consolas','Monaco',monospace;
   --sans:     'Inter','Segoe UI',system-ui,sans-serif;
+  --card:     #0b1220;
 }
 html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5;min-height:100vh}
 
@@ -790,7 +791,27 @@ function renderHeader(){
   }
 
   $('headerPills').innerHTML = pills;
-  $('headerTs').textContent = ts ? 'SGT ' + ts : '';
+  // Parse generated_at_sgt to compute data age
+  if (ts) {
+    const _genStr = D.generated_at_sgt || '';
+    // format: "2026-05-09 20:22 SGT" → parse as local time approximation
+    const _parts = _genStr.match(/(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})/);
+    let _ageStr = 'SGT ' + ts;
+    let _ageColor = 'var(--dim)';
+    if (_parts) {
+      const _genMs = new Date(_parts[1] + 'T' + _parts[2] + ':00+08:00').getTime();
+      const _ageMin = Math.round((Date.now() - _genMs) / 60000);
+      if (_ageMin >= 0) {
+        const _ageTxt = _ageMin < 60 ? _ageMin + 'm ago' : Math.floor(_ageMin/60) + 'h ' + (_ageMin%60) + 'm ago';
+        _ageStr = 'SGT ' + ts + ' · ' + _ageTxt;
+        _ageColor = _ageMin > 480 ? 'var(--red)' : _ageMin > 120 ? 'var(--gold)' : 'var(--dim)';
+      }
+    }
+    $('headerTs').textContent = _ageStr;
+    $('headerTs').style.color = _ageColor;
+  } else {
+    $('headerTs').textContent = '';
+  }
 }
 
 // ── Hero + top picks ──────────────────────────────────────────────────────────
