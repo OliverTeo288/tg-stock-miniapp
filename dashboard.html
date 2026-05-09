@@ -1066,6 +1066,9 @@ function renderGeo(){
     grid.innerHTML='<p class="c-dim" style="padding:16px">No active geopolitical events</p>';
     return;
   }
+  // Sort HIGH → MEDIUM → LOW. Use non-zero values — HIGH:0 breaks || fallback (0 is falsy).
+  const _ro = {HIGH:1,MEDIUM:2,LOW:3};
+  active.sort((a,b)=>(_ro[a[1].risk_level]??9)-(_ro[b[1].risk_level]??9));
   active.forEach(([name,s])=>{
     const score = s.score||0;
     const barW = Math.round(Math.min(100,Math.abs(score)*500));
