@@ -731,10 +731,10 @@ function renderSectors() {
     const rb = (b[1].rotation_score||0)*0.4 + (b[1].avg_sentiment||0)*0.6;
     return rb - ra;
   });
-  const maxS = Math.max(...sorted.map(([,s]) => Math.abs(s.avg_sentiment||0)), 0.01);
   el('sector-list').innerHTML = sorted.map(([name, s]) => {
     const sc   = s.avg_sentiment || 0;
-    const pct  = Math.abs(sc) / maxS * 100;
+    // Same absolute scale as desktop: map [-1,+1] → [0,100]%, neutral = 50%
+    const pct  = Math.round(((sc + 1) / 2) * 100);
     const col  = sc > 0.10 ? 'var(--bull)' : sc < -0.10 ? 'var(--bear)' : 'var(--neutral)';
     const sign = sc > 0 ? '+' : '';
     const rot  = s.rotation_score;
