@@ -537,6 +537,10 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-si
   <div class="section-title">🔮 AI PREDICTION <span>NEXT BEST BUY</span>
     <span class="info-icon" data-tip="Multi-factor model scoring every watchlist stock across 4 dimensions: Technical alignment (30%), Momentum (25%), Catalyst quality (25%), Sentiment confluence (20%). Top-5 picks by conviction score.">?</span>
   </div>
+  <div style="display:flex;gap:8px;margin-bottom:12px" id="predTabBar">
+    <button id="predTabRules" onclick="switchPredTab('rules')" style="padding:5px 14px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #00c8ff;background:transparent;color:#00c8ff;font-family:var(--mono)">📊 Rules</button>
+    <button id="predTabAI" onclick="switchPredTab('ai')" style="padding:5px 14px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #00c8ff;background:#00c8ff;color:#000;font-family:var(--mono)">🤖 AI Analysis</button>
+  </div>
   <div id="predGrid"></div>
   <div id="predTrackRecord" style="margin-top:14px"></div>
 </div>
@@ -1735,15 +1739,16 @@ function filterEarnings(type, btn){
   _renderEarnCards(filtered);
 }
 
-function renderPredictions(){
-  const preds = D.predictions || [];
-  const grid  = $('predGrid');
-  if(!grid) return;
-  if(!preds.length){
-    grid.innerHTML='<p style="opacity:.4;font-size:11px;font-family:var(--mono)">No prediction data — run market_intel.py to generate</p>';
-    return;
-  }
-  const rows = preds.map((p, i) => {
+function switchPredTab(tab){
+  const isAI = tab === 'ai';
+  const btnRules = $('predTabRules');
+  const btnAI    = $('predTabAI');
+  if(btnRules){ btnRules.style.background = isAI ? 'transparent' : '#00c8ff'; btnRules.style.color = isAI ? '#00c8ff' : '#000'; }
+  if(btnAI)  { btnAI.style.background   = isAI ? '#00c8ff' : 'transparent'; btnAI.style.color   = isAI ? '#000' : '#00c8ff'; }
+  renderPredictions(tab);
+}
+function buildPredRows(preds, showLLM) {
+  return preds.map((p, i) => {
     const pct   = Math.round(p.pred_pct || p.pred_score * 100);
     const scoreCol = pct >= 70 ? '#00ffcc' : pct >= 55 ? '#7fffb2' : pct >= 40 ? '#ffcf40' : '#ff9966';
     const confCol  = CONF_COLOR[p.confidence] || '#aaa';
@@ -1759,6 +1764,12 @@ function renderPredictions(){
     }).join('');
     const reasons = (p.key_reasons||[]).slice(0,3).map(r=>'<li>'+r+'</li>').join('');
     const risks   = (p.key_risks||[]).slice(0,1).map(r=>'<li>'+r+'</li>').join('');
+    const llmBox  = (showLLM && D.llm_active && p.llm_reason)
+      ? '<div style="margin-top:10px;padding:8px 10px;background:rgba(0,200,255,0.08);border-left:2px solid #00c8ff;border-radius:3px;font-size:10px;line-height:1.5">'
+          +'<span style="color:#00c8ff;font-weight:700">🤖 AI: </span>'+p.llm_reason
+          +(p.llm_red_flags ? '<div style="margin-top:4px;color:#ffcf40">⚠️ '+p.llm_red_flags+'</div>' : '')
+        +'</div>'
+      : '';
 
     if(i === 0) {
       const tvB = p.tv_rec_label ? tvBadge(p.tv_rec_label) : '';
@@ -1796,6 +1807,7 @@ function renderPredictions(){
             +'<ul class="pred-risk-list">'+risks+'</ul>'
           +'</div>'
         +'</div>'
+        +llmBox
         +'</div>';
     } else {
       return '<div class="pred-card">'
@@ -1813,15 +1825,35 @@ function renderPredictions(){
         +'<div class="pred-entry-badge" style="background:'+entryCol+'22;color:'+entryCol+';border:1px solid '+entryCol+'44;margin:6px 0">'+(p.entry_label||p.entry_type)+'</div>'
         +dimBars
         +'<div class="pred-horizon">'+p.horizon+'</div>'
+        +llmBox
         +'</div>';
     }
   }).join('');
-  grid.innerHTML = '<div class="pred-grid">'+rows+'</div>';
+}
+function renderPredictions(tab){
+  tab = tab || 'ai';
+  const grid = $('predGrid');
+  if(!grid) return;
+  const isAI = tab === 'ai';
+  const preds = isAI ? (D.predictions || []) : (D.predictions_rules || D.predictions || []);
+  if(!preds.length){
+    grid.innerHTML='<p style="opacity:.4;font-size:11px;font-family:var(--mono)">No prediction data — run market_intel.py to generate</p>';
+    return;
+  }
+  let prefix = '';
+  if(isAI && !D.llm_active){
+    prefix = '<div style="margin-bottom:12px;padding:8px 12px;background:rgba(0,200,255,0.06);border:1px solid rgba(0,200,255,0.2);border-radius:6px;font-size:10px;color:#aaa">'
+      +'🤖 AI re-ranking runs automatically via scheduled tasks<br>'
+      +'<span style="opacity:.6">Showing rule-based predictions (identical to Rules tab)</span>'
+      +'</div>';
+  }
+  const rows = buildPredRows(preds, isAI);
+  grid.innerHTML = prefix + '<div class="pred-grid">'+rows+'</div>';
 }
 
 renderHeader();
 renderHero();
-renderPredictions();
+renderPredictions('ai');
 renderTrackRecord();
 renderEarningsRadar();
 renderMovers();
