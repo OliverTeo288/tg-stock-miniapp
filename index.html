@@ -364,6 +364,10 @@ body{
 <div class="page" id="pg-pred">
   <div class="sec">🔮 AI Prediction</div>
   <div class="sec-sub">Multi-factor model: Technical (30%) · Momentum (25%) · Catalyst (25%) · Sentiment (20%). Scored across all watchlist stocks at run time.</div>
+  <div style="display:flex;gap:8px;margin-bottom:10px" id="predTabBarTg">
+    <button id="predTabRulesTg" onclick="switchPredTabTg('rules')" style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #00c8ff;background:transparent;color:#00c8ff;font-family:var(--mono)">📊 Rules</button>
+    <button id="predTabAITg" onclick="switchPredTabTg('ai')" style="padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid #00c8ff;background:#00c8ff;color:#000;font-family:var(--mono)">🤖 AI Analysis</button>
+  </div>
   <div id="pred-content"></div>
   <div id="pred-track" style="margin-top:12px"></div>
 
@@ -1107,28 +1111,30 @@ const _DIM_COL        = {technical:'#00cfff',momentum:'#7fffb2',catalyst:'#b084f
 const _DIM_LABELS     = {technical:'Technical',momentum:'Momentum',catalyst:'Catalyst',sentiment:'Sentiment'};
 
 let _predRendered = false;
-function renderPredictionsTg() {
-  if (_predRendered) return;
-  _predRendered = true;
-
-  const preds = D.predictions || [];
-  const cont  = el('pred-content');
-  if (!cont) return;
-
-  if (!preds.length) {
-    cont.innerHTML = '<div style="text-align:center;padding:24px;color:var(--faint);font-size:12px">No prediction data yet.<br>Run market_intel.py to generate.</div>';
-    return;
-  }
-
+function switchPredTabTg(tab) {
+  const isAI = tab === 'ai';
+  const btnR = el('predTabRulesTg');
+  const btnA = el('predTabAITg');
+  if(btnR){ btnR.style.background = isAI ? 'transparent' : '#00c8ff'; btnR.style.color = isAI ? '#00c8ff' : '#000'; }
+  if(btnA){ btnA.style.background = isAI ? '#00c8ff' : 'transparent'; btnA.style.color = isAI ? '#000' : '#00c8ff'; }
+  _predRendered = false;
+  renderPredictionsTg(tab);
+}
+function buildPredCardsTg(preds, showLLM) {
   const dims = ['technical','momentum','catalyst','sentiment'];
   let html = '';
-
   preds.forEach((p, i) => {
     const pct      = Math.round(p.pred_pct || p.pred_score * 100);
     const scoreCol = pct >= 70 ? '#00ffcc' : pct >= 55 ? '#7fffb2' : pct >= 40 ? '#ffcf40' : '#ff9966';
     const confCol  = _PRED_CONF_COL[p.confidence]  || '#aaa';
     const entryCol = _PRED_ENTRY_COL[p.entry_type] || '#aaa';
     const ds       = p.dim_scores || {};
+    const llmBox   = (showLLM && D.llm_active && p.llm_reason)
+      ? '<div style="margin-top:8px;padding:7px 9px;background:rgba(0,200,255,0.08);border-left:2px solid #00c8ff;border-radius:3px;font-size:9px;line-height:1.5">'
+          +'<span style="color:#00c8ff;font-weight:700">🤖 AI: </span>'+p.llm_reason
+          +(p.llm_red_flags ? '<div style="margin-top:3px;color:#ffcf40">⚠️ '+p.llm_red_flags+'</div>' : '')
+        +'</div>'
+      : '';
 
     if (i === 0) {
       // Hero card
@@ -1172,6 +1178,7 @@ function renderPredictionsTg() {
         +'<div style="margin-top:10px">'+dimRows+'</div>'
         +(reasons ? '<div style="font-size:9px;color:var(--faint);margin-top:8px;letter-spacing:.6px">KEY REASONS</div><ul class="pred-reasons">'+reasons+'</ul>' : '')
         +(risks   ? '<div style="font-size:9px;color:var(--faint);margin-top:6px;letter-spacing:.6px">RISKS</div><ul class="pred-risks">'+risks+'</ul>' : '')
+        +llmBox
         +'</div>';
     } else {
       // Mini card
@@ -1198,11 +1205,35 @@ function renderPredictionsTg() {
           +'<div class="pred-mini-score" style="color:'+scoreCol+'">'+pct+'%</div>'
           +'<div style="font-size:8px;color:'+confCol+';text-align:right">'+p.confidence+'</div>'
         +'</div>'
+        +llmBox
         +'</div>';
     }
   });
+  return html;
+}
+function renderPredictionsTg(tab) {
+  if (_predRendered) return;
+  _predRendered = true;
+  tab = tab || 'ai';
+  const isAI = tab === 'ai';
 
-  cont.innerHTML = html;
+  const preds = isAI ? (D.predictions || []) : (D.predictions_rules || D.predictions || []);
+  const cont  = el('pred-content');
+  if (!cont) return;
+
+  if (!preds.length) {
+    cont.innerHTML = '<div style="text-align:center;padding:24px;color:var(--faint);font-size:12px">No prediction data yet.<br>Run market_intel.py to generate.</div>';
+    return;
+  }
+
+  let prefix = '';
+  if(isAI && !D.llm_active){
+    prefix = '<div style="margin-bottom:10px;padding:8px 10px;background:rgba(0,200,255,0.06);border:1px solid rgba(0,200,255,0.2);border-radius:8px;font-size:10px;color:var(--faint)">'
+      +'🤖 AI re-ranking runs automatically via scheduled tasks<br>'
+      +'<span style="opacity:.7">Showing rule-based predictions (identical to Rules tab)</span>'
+      +'</div>';
+  }
+  cont.innerHTML = prefix + buildPredCardsTg(preds, isAI);
 }
 
 
