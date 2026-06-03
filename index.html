@@ -1426,6 +1426,7 @@ function renderExitSignalsTg() {
     const pnl = (s.pnl_pct>=0?'+':'')+s.pnl_pct.toFixed(1)+'%';
     return '<div style="padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;gap:8px;align-items:flex-start">'
       +'<span style="font-weight:700;font-family:monospace;min-width:45px">'+s.ticker+'</span>'
+      +(s.cur_price?'<span style="font-family:monospace;font-size:11px;color:#e0e0e0">$'+s.cur_price.toFixed(2)+'</span>':'')
       +'<span style="background:'+col+'22;color:'+col+';border:1px solid '+col+'44;border-radius:3px;padding:2px 5px;font-size:9px;font-weight:700;white-space:nowrap">'+urgIco[s.urgency]+' '+s.urgency.replace('_',' ')+'</span>'
       +'<span style="color:'+(s.pnl_pct>=0?'#7fffb2':'#ff6b6b')+';font-family:monospace;font-size:11px">'+pnl+'</span>'
       +'<span style="font-size:10px;opacity:.75;flex:1">'+s.reasons[0]+'</span>'
@@ -1443,6 +1444,7 @@ function renderPreEarningsTg() {
     const dr = (p.drift_3d>=0?'+':'')+p.drift_3d.toFixed(1)+'%';
     return '<div style="padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;gap:8px;align-items:center">'
       +'<span style="font-weight:700;font-family:monospace;min-width:45px">'+p.ticker+'</span>'
+      +(p.price?'<span style="font-family:monospace;font-size:11px;color:#e0e0e0">$'+p.price.toFixed(2)+'</span>':'')
       +'<span style="background:#b084ff22;color:#b084ff;border:1px solid #b084ff44;border-radius:3px;font-size:9px;padding:2px 4px;font-weight:700">📅 '+p.days_to_earnings+'d</span>'
       +'<span style="color:'+dc+';font-family:monospace;font-size:11px">'+dr+'</span>'
       +'<span style="color:#7fffb2;font-size:10px">'+( p.analyst_upside>0?'+'+p.analyst_upside.toFixed(0)+'% analyst':'')+'</span>'
