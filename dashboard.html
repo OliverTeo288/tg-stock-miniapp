@@ -1055,6 +1055,11 @@ function drawGems(gems){
           <span class="bar-val c-gold">${Math.round(w52*100)}%</span>
         </div>`:''}
       </div>
+      ${(g.stop_price&&g.target_price)?`<div style="display:flex;gap:12px;font-family:var(--mono);font-size:11px;padding:6px 0 2px;border-top:1px solid rgba(255,255,255,0.07);margin-top:6px">
+        <span>📥 ${fmtPrice(price||g.price)}</span>
+        <span style="color:#7fffb2">🎯 ${fmtPrice(g.target_price)} <span style="opacity:.6">(+${g.target_pct}%)</span></span>
+        <span style="color:#ff6b6b">🛡 ${fmtPrice(g.stop_price)} <span style="opacity:.6">(${g.stop_pct}%)</span></span>
+      </div>`:''}
       <div class="gem-sector c-dim">${g.sector||''} · ${g.mention_count} articles</div>
     `;
     grid.appendChild(card);
