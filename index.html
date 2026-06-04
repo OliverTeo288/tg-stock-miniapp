@@ -643,6 +643,11 @@ function renderBao() {
         <span class="bao-chg ${lChg.cls}">${lChg.str}</span>
       </div>
       ${leadTgtHtml}
+      ${(lead.stop_price && lead.target_price) ? `<div style="display:flex;gap:12px;padding:8px 0 4px;font-size:11px;font-family:monospace">
+        <span>📥 <span style="opacity:.5">BUY</span> ${fmtPrice(lead.price)}</span>
+        <span style="color:#7fffb2">🎯 <span style="opacity:.7">TARGET</span> ${fmtPrice(lead.target_price)} <span style="font-size:10px">(+${lead.target_pct}%)</span></span>
+        <span style="color:#ff6b6b">🛡 <span style="opacity:.7">STOP</span> ${fmtPrice(lead.stop_price)} <span style="font-size:10px">(${lead.stop_pct}%)</span></span>
+      </div>` : ''}
       <div class="score-row">
         <div class="score-bar"><div class="score-fill" style="width:${scoreBarW(lead.buy_score)}%"></div></div>
         <span class="score-lbl">Score ${lead.buy_score?.toFixed(3)}</span>
@@ -683,7 +688,11 @@ function renderBao() {
             ${subBuzz?`<span style="font-size:10px;color:#ce93d8">🔥${subBuzz}</span>`:''}
           </div>
           ${top1 ? `<div class="pick-reason">${top1}</div>` : ''}
-          ${subTgtStr}
+          ${(p.stop_price && p.target_price) ? `<div style="font-size:10px;font-family:monospace;margin-top:3px;display:flex;gap:8px;flex-wrap:wrap">
+            <span>📥 ${fmtPrice(p.price)}</span>
+            <span style="color:#7fffb2">🎯 ${fmtPrice(p.target_price)} <span style="opacity:.6">(+${p.target_pct}%)</span></span>
+            <span style="color:#ff6b6b">🛡 ${fmtPrice(p.stop_price)} <span style="opacity:.6">(${p.stop_pct}%)</span></span>
+          </div>` : subTgtStr}
         </div>
         <div class="pick-right">
           <div class="pick-price">${fmtPrice(p.price)}</div>
@@ -725,11 +734,15 @@ function renderGems() {
           ${tBdg}
         </div>
         <div class="gem-meta">
-          ${fmtPrice(pd.price)} <span class="bao-chg ${chg.cls}">${chg.str}</span>
+          ${fmtPrice(pd.price || g.price)} <span class="bao-chg ${chg.cls}">${chg.str}</span>
           &nbsp;·&nbsp; Score: ${g.composite_score?.toFixed(3)||g.sentiment_score?.toFixed(3)||'—'}
           &nbsp;·&nbsp; ${g.mention_count} article${g.mention_count !== 1 ? 's' : ''}
         </div>
-        ${tgtStr}
+        ${(g.stop_price && g.target_price) ? `<div style="font-size:10px;font-family:monospace;margin:4px 0;display:flex;gap:10px;flex-wrap:wrap">
+          <span>📥 ${fmtPrice(pd.price||g.price)}</span>
+          <span style="color:#7fffb2">🎯 ${fmtPrice(g.target_price)} <span style="opacity:.6">(+${g.target_pct||((g.target_price-(pd.price||g.price||1))/(pd.price||g.price||1)*100).toFixed(1)}%)</span></span>
+          <span style="color:#ff6b6b">🛡 ${fmtPrice(g.stop_price)} <span style="opacity:.6">(${g.stop_pct||-7}%)</span></span>
+        </div>` : tgtStr}
         <ul class="reasons">${reasons}</ul>
       </div>`;
   }).join('');
