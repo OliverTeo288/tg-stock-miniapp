@@ -114,6 +114,27 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-si
 .earn-filter-btn{font-size:9px;letter-spacing:.8px;padding:3px 8px;border-radius:3px;border:1px solid var(--border);background:transparent;color:rgba(255,255,255,.5);cursor:pointer;transition:.15s}
 .earn-filter-btn.active{background:var(--cyan2);color:#000;border-color:var(--cyan2)}
 
+
+/* ── Crash Risk ─────────────────────────────────────────────────── */
+.crash-banner{border-radius:6px;padding:12px 16px;margin-bottom:16px}
+.crash-banner.critical{background:rgba(255,68,68,.1);border:1px solid rgba(255,68,68,.4)}
+.crash-banner.high{background:rgba(255,140,0,.08);border:1px solid rgba(255,140,0,.35)}
+.crash-banner.medium{background:rgba(255,207,64,.07);border:1px solid rgba(255,207,64,.3)}
+.crash-banner.low{display:none}
+.crash-hdr{font-size:11px;font-weight:700;letter-spacing:1px;margin-bottom:5px}
+.crash-signal-row{font-size:11px;opacity:.75;margin-top:3px}
+
+/* ── Scanner tab ─────────────────────────────────────────────────── */
+.scan-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px}
+@media(max-width:1200px){.scan-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:768px){.scan-grid{grid-template-columns:repeat(2,1fr)}}
+.scan-card{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:12px;position:relative;overflow:hidden}
+.scan-card.best{border-color:#00ffcc55}
+.scan-card.strong{border-color:#7fffb255}
+.scan-score-big{font-size:32px;font-weight:800;font-family:var(--mono);line-height:1}
+.scan-tier-chip{font-size:9px;font-weight:700;letter-spacing:.8px;padding:2px 7px;border-radius:10px;display:inline-block;margin-top:4px}
+.scan-dim{font-size:10px;font-family:var(--mono);opacity:.7;margin-top:4px}
+
 /* ── Prediction section ──────────────────────────────────────────────── */
 .pred-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:10px;margin-top:8px}
 @media(max-width:1200px){.pred-grid{grid-template-columns:1fr 1fr 1fr}}
@@ -543,6 +564,28 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-si
   </div>
   <div id="predGrid"></div>
   <div id="predTrackRecord" style="margin-top:14px"></div>
+</div>
+
+
+<!-- SECTION: SCANNER -->
+<div class="section" id="scannerSection">
+  <div class="section-title">🔍 Quality + Discount Scanner
+    <span title="Quality (TV signal, RSI, momentum) × 55% + Discount (52w pullback, not overbought) × 45%. 80+ = BEST tier.">?</span>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    <select id="scan-sector-d" style="background:var(--card);border:1px solid var(--border);color:var(--fg);padding:5px 10px;border-radius:4px;font-size:11px">
+      <option value="">All Sectors</option>
+    </select>
+    <select id="scan-tier-d" style="background:var(--card);border:1px solid var(--border);color:var(--fg);padding:5px 10px;border-radius:4px;font-size:11px">
+      <option value="">All Tiers</option>
+      <option value="BEST">🟢 BEST (80+)</option>
+      <option value="STRONG">🟡 STRONG (65–79)</option>
+      <option value="WATCH">🟠 WATCH (40–64)</option>
+      <option value="AVOID">🔴 AVOID (&lt;40)</option>
+    </select>
+    <span id="scan-count-d" style="font-size:10px;opacity:.4;align-self:center;font-family:var(--mono)"></span>
+  </div>
+  <div id="scanGrid" class="scan-grid"></div>
 </div>
 
 <!-- SECTION 1.7: EARNINGS RADAR -->
@@ -1859,7 +1902,120 @@ function renderPredictions(tab){
   grid.innerHTML = prefix + '<div class="pred-grid">'+rows+'</div>';
 }
 
-renderHeader();renderExitSignals();renderPreEarnings();renderMacroIgnitions();
+
+// ── Crash Risk Banner ────────────────────────────────────────────────────────
+function renderCrashRisk() {
+  const cr   = D.crash_risk || {};
+  const cont = $('crashRiskSection');
+  if (!cont || !cr.risk_level || cr.risk_level === 'LOW') return;
+  const lvl  = cr.risk_level.toLowerCase();
+  const col  = lvl === 'critical' ? '#ff4444' : lvl === 'high' ? '#ff8c00' : '#ffcf40';
+  let html = `<div class="crash-banner ${lvl}">
+    <div class="crash-hdr" style="color:${col}">${cr.risk_emoji || ''} CRASH RISK: ${cr.risk_level} — ${cr.risk_score}/100 &nbsp;<span style="font-weight:400;opacity:.7">${cr.risk_action}</span></div>`;
+  (cr.signals || []).forEach(s => {
+    const sCol = s.severity==='CRITICAL' ? '#ff4444' : s.severity==='HIGH' ? '#ff8c00' : '#ffcf40';
+    html += `<div class="crash-signal-row">⚠ <span style="color:${sCol};font-weight:700">${s.signal}</span> — ${s.detail}</div>`;
+  });
+  html += '</div>';
+  cont.innerHTML = html;
+}
+
+// ── Quality+Discount Scanner ──────────────────────────────────────────────────
+function renderScanner() {
+  const prices   = D.prices     || {};
+  const tvTech   = D.tv_technicals || {};
+  const meta     = D.ticker_meta   || {};
+  const recs     = D.recommendations || [];
+  const recMap   = {};
+  recs.forEach(r => recMap[r.ticker] = r);
+
+  const TV_Q = { STRONG_BUY:1.0, BUY:0.75, NEUTRAL:0.45, SELL:0.2, STRONG_SELL:0.0 };
+
+  const stocks = Object.keys(prices).filter(k => !k.startsWith('^') && k !== 'SPY' && k !== 'QQQ');
+  const scored = stocks.map(ticker => {
+    const pd  = prices[ticker] || {};
+    const td  = tvTech[ticker] || {};
+    const rec = recMap[ticker] || {};
+    const m   = meta[ticker]   || {};
+
+    let qScore = 50;
+    const tvQ = TV_Q[td.tv_rec_label] ?? 0.45;
+    qScore += (tvQ - 0.45) * 40;
+    const rsi = td.rsi;
+    if (rsi != null) {
+      if (rsi >= 40 && rsi <= 65) qScore += 8;
+      else if (rsi > 80)  qScore -= 12;
+      else if (rsi < 25)  qScore -= 8;
+    }
+    if (rec.composite_score != null) qScore += (rec.composite_score - 0.5) * 20;
+    if (td.macd_hist != null) qScore += td.macd_hist > 0 ? 5 : -5;
+    qScore = Math.max(0, Math.min(100, qScore));
+
+    let dScore = 50;
+    const w52pos = pd.week52_position;
+    if (w52pos != null) dScore = Math.round((1 - w52pos) * 80 + 10);
+    const pmChg = pd.pre_market_chg_pct;
+    if (pmChg != null && pmChg > 2) dScore = Math.min(100, dScore + 5);
+    const chg = pd.change_pct || 0;
+    if (chg > 5) dScore = Math.max(0, dScore - 10);
+    dScore = Math.max(0, Math.min(100, dScore));
+
+    const combined = Math.round(qScore * 0.55 + dScore * 0.45);
+    let tier, tierCol, tierBg;
+    if      (combined >= 80) { tier='BEST';   tierCol='#00ffcc'; tierBg='#00ffcc22'; }
+    else if (combined >= 65) { tier='STRONG'; tierCol='#7fffb2'; tierBg='#7fffb222'; }
+    else if (combined >= 40) { tier='WATCH';  tierCol='#ffcf40'; tierBg='#ffcf4022'; }
+    else                     { tier='AVOID';  tierCol='#ff7c7c'; tierBg='#ff7c7c22'; }
+
+    return { ticker, combined, qScore:Math.round(qScore), dScore:Math.round(dScore),
+             tier, tierCol, tierBg, sector:m.sector||rec.sector||'', pd, td };
+  }).filter(s => s.combined > 0);
+
+  scored.sort((a,b) => b.combined - a.combined);
+
+  const sectors = [...new Set(scored.map(s=>s.sector).filter(Boolean))].sort();
+  const selD = $('scan-sector-d');
+  if (selD) sectors.forEach(s => {
+    const o = document.createElement('option');
+    o.value=s; o.textContent=s; selD.appendChild(o);
+  });
+
+  function applyFilter() {
+    const secF  = ($('scan-sector-d')||{}).value || '';
+    const tierF = ($('scan-tier-d')||{}).value   || '';
+    const filt  = scored.filter(s => (!secF||s.sector===secF) && (!tierF||s.tier===tierF));
+    $('scan-count-d').textContent = filt.length + ' stocks';
+    $('scanGrid').innerHTML = filt.map(s => {
+      const chg = s.pd.change_pct;
+      const chgStr = chg!=null ? `<span style="color:${chg>=0?'#7fffb2':'#ff6b6b'};font-size:10px">${chg>=0?'+':''}${chg.toFixed(1)}%</span>` : '';
+      const rsiStr = s.td.rsi!=null ? `RSI ${s.td.rsi.toFixed(0)}` : '';
+      const tvStr  = s.td.tv_rec_label ? s.td.tv_rec_label.replace('_',' ') : '';
+      const priceStr = s.pd.price ? `$${s.pd.price.toFixed(2)}` : '';
+      return `<div class="scan-card ${s.tier.toLowerCase()}">
+        <div style="display:flex;gap:12px">
+          <div>
+            <div class="scan-score-big" style="color:${s.tierCol}">${s.combined}</div>
+            <div class="scan-tier-chip" style="color:${s.tierCol};background:${s.tierBg};border:1px solid ${s.tierCol}55">${s.tier}</div>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="font-weight:700;font-family:var(--mono);font-size:14px">${s.ticker}</span>
+              <span style="font-size:12px;opacity:.6">${priceStr}</span>
+              ${chgStr}
+            </div>
+            <div style="font-size:10px;opacity:.45;margin-top:1px">${s.sector}</div>
+            <div class="scan-dim">Q ${s.qScore} · D ${s.dScore} ${tvStr ? '· '+tvStr : ''} ${rsiStr ? '· '+rsiStr : ''}</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  $('scan-sector-d')?.addEventListener('change', applyFilter);
+  $('scan-tier-d')?.addEventListener('change', applyFilter);
+  applyFilter();
+}
+
+renderHeader();renderCrashRisk();renderExitSignals();renderPreEarnings();renderMacroIgnitions();
 renderHero();
 renderPredictions('ai');
 renderTrackRecord();
@@ -1873,6 +2029,7 @@ renderTvScreener();
 renderSignals();
 renderHeadlines();
 renderSentimentTrend();
+renderScanner();
 setTimeout(injectSparklines, 200);
 
 function renderExitSignals() {
@@ -1936,4 +2093,7 @@ function renderMacroIgnitions() {
   el.querySelector('.ign-body').innerHTML = items;
 }</script>
 </body>
-</html>
+</html><!-- CRASH RISK BANNER -->
+<div id="crashRiskSection" style="margin-bottom:8px"></div>
+
+
