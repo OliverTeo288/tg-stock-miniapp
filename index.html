@@ -222,6 +222,19 @@ body{
 
 /* ── Prediction page ─────────────────────────────────────────────────── */
 .pred-hero{background:linear-gradient(135deg,rgba(0,255,255,.06),var(--card));border:1px solid var(--bao);border-radius:10px;padding:14px;margin-bottom:10px}
+
+.crash-banner{border-radius:8px;padding:10px 12px;margin-bottom:4px}
+.crash-banner.critical{background:rgba(255,68,68,.12);border:1px solid rgba(255,68,68,.4)}
+.crash-banner.high{background:rgba(255,140,0,.10);border:1px solid rgba(255,140,0,.35)}
+.crash-banner.medium{background:rgba(255,207,64,.08);border:1px solid rgba(255,207,64,.3)}
+.crash-banner.low{display:none}
+.crash-banner-hdr{font-size:11px;font-weight:700;letter-spacing:.5px;margin-bottom:4px}
+.crash-signal{font-size:10px;opacity:.75;margin-top:2px}
+.scan-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px}
+.scan-card.best{border-color:#00ffcc55}
+.scan-card.strong{border-color:#7fffb255}
+.scan-score{font-size:28px;font-weight:800;font-family:var(--mono);line-height:1}
+.scan-tier-chip{font-size:9px;font-weight:700;letter-spacing:.5px;padding:2px 6px;border-radius:10px;display:inline-block;margin-top:3px}
 .pred-score-big{font-size:36px;font-weight:800;font-family:var(--mono);line-height:1}
 .pred-conf{font-size:9px;letter-spacing:1.5px;margin-top:2px}
 .pred-entry-chip{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.8px;padding:3px 7px;border-radius:12px;margin:6px 0}
@@ -406,9 +419,38 @@ body{
   </button>
 
   <button class="tbtab" onclick="switchTab('pg-pred',this);renderPredictionsTg();renderExitSignalsTg();renderPreEarningsTg();renderMacroIgnitionsTg();renderTrackRecordTg();renderEarningsRadarTg()">
+  <button class="tbtab" onclick="switchTab('pg-scan',this);renderScannerTg()">
+    <svg viewBox="0 0 24 24"><path d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/></svg>
+    Scanner
+  </button>
     <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
     Predict
   </button>
+
+<!-- ── SCANNER PAGE ─────────────────────────────────────────────────── -->
+<div class="page" id="pg-scan">
+
+  <!-- Crash Risk Banner -->
+  <div id="crashRiskBannerTg" style="margin-bottom:14px"></div>
+
+  <div class="sec">🔍 Quality + Discount Scanner</div>
+  <div class="sec-sub">Scores every tracked stock on business quality (margins, growth, TV signal) and how much it has pulled back. Based on the 3-Prompt Scanner framework.</div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    <select id="scan-sector" style="background:var(--card);border:1px solid var(--border);color:var(--fg);padding:5px 8px;border-radius:6px;font-size:11px;flex:1">
+      <option value="">All Sectors</option>
+    </select>
+    <select id="scan-tier" style="background:var(--card);border:1px solid var(--border);color:var(--fg);padding:5px 8px;border-radius:6px;font-size:11px;flex:1">
+      <option value="">All Tiers</option>
+      <option value="BEST">🟢 BEST (80+)</option>
+      <option value="STRONG">🟡 STRONG (65–79)</option>
+      <option value="WATCH">🟠 WATCH (40–64)</option>
+      <option value="AVOID">🔴 AVOID (&lt;40)</option>
+    </select>
+  </div>
+  <div id="scan-count" style="font-size:10px;opacity:.4;margin-bottom:8px;font-family:monospace"></div>
+  <div id="scan-grid"></div>
+</div>
 </div>
 
 <script>
@@ -1465,6 +1507,158 @@ function renderMacroIgnitionsTg() {
     +'<div style="font-size:10px;color:#7fffb2">'+ig.tickers.slice(0,5).join(' · ')+'</div>'
     +'</div>'
   ).join('');
-}</script>
+}
+// ── Crash Risk Banner ─────────────────────────────────────────────────────────
+function renderCrashRiskTg() {
+  const cr   = D.crash_risk || {};
+  const cont = el('crashRiskBannerTg');
+  if (!cont || !cr.risk_level || cr.risk_level === 'LOW') return;
+  const lvl  = cr.risk_level.toLowerCase();
+  const col  = lvl === 'critical' ? '#ff4444' : lvl === 'high' ? '#ff8c00' : '#ffcf40';
+  let html = `<div class="crash-banner ${lvl}">
+    <div class="crash-banner-hdr" style="color:${col}">${cr.risk_emoji || ''} CRASH RISK: ${cr.risk_level} (${cr.risk_score}/100)</div>
+    <div style="font-size:10px;color:${col};opacity:.85;margin-bottom:4px">${cr.risk_action || ''}</div>`;
+  (cr.signals || []).forEach(s => {
+    html += `<div class="crash-signal">⚠ <strong>${s.signal}</strong> — ${s.detail}</div>`;
+  });
+  html += '</div>';
+  cont.innerHTML = html;
+}
+
+// ── Quality+Discount Scanner ──────────────────────────────────────────────────
+let _scanRendered = false;
+function renderScannerTg() {
+  renderCrashRiskTg();
+  if (_scanRendered) return;
+  _scanRendered = true;
+
+  const prices   = D.prices     || {};
+  const tvTech   = D.tv_technicals || {};
+  const meta     = D.ticker_meta   || {};
+  const recs     = D.recommendations || [];
+  const recMap   = {};
+  recs.forEach(r => recMap[r.ticker] = r);
+
+  const TV_Q = { STRONG_BUY: 1.0, BUY: 0.75, NEUTRAL: 0.45, SELL: 0.2, STRONG_SELL: 0.0 };
+
+  // Score every ticker that has price data
+  const stocks = Object.keys(prices).filter(k => !k.startsWith('^') && k !== 'SPY' && k !== 'QQQ');
+  const scored = stocks.map(ticker => {
+    const pd  = prices[ticker] || {};
+    const td  = tvTech[ticker] || {};
+    const rec = recMap[ticker] || {};
+    const m   = meta[ticker]   || {};
+
+    // ── Quality score (0–100) ─────────────────────────────────
+    let qScore = 50; // baseline
+    // TV signal quality
+    const tvQ = TV_Q[td.tv_rec_label] ?? 0.45;
+    qScore += (tvQ - 0.45) * 40; // ±20 pts
+
+    // RSI not overbought / not oversold
+    const rsi = td.rsi;
+    if (rsi != null) {
+      if (rsi >= 40 && rsi <= 65) qScore += 8;   // healthy momentum
+      else if (rsi > 80) qScore -= 12;           // overbought = quality risk
+      else if (rsi < 25) qScore -= 8;            // capitulation
+    }
+
+    // Composite rec score if available
+    if (rec.composite_score != null) qScore += (rec.composite_score - 0.5) * 20;
+
+    // MACD histogram momentum
+    if (td.macd_hist != null) {
+      if (td.macd_hist > 0) qScore += 5;
+      else qScore -= 5;
+    }
+
+    qScore = Math.max(0, Math.min(100, qScore));
+
+    // ── Discount score (0–100) ────────────────────────────────
+    let dScore = 50;
+    const w52pos = pd.week52_position; // 0=52w low, 1=52w high
+    if (w52pos != null) {
+      // Deep pullback = high discount; near 52w high = no discount
+      dScore = Math.round((1 - w52pos) * 80 + 10); // 10–90
+    }
+
+    // Pre-market momentum bonus (confirms discount with demand)
+    const pmChg = pd.pre_market_chg_pct;
+    if (pmChg != null && pmChg > 2) dScore = Math.min(100, dScore + 5);
+
+    // Penalise if already run hard today
+    const chg = pd.change_pct || 0;
+    if (chg > 5) dScore = Math.max(0, dScore - 10);
+
+    dScore = Math.max(0, Math.min(100, dScore));
+
+    // ── Combined conviction score ─────────────────────────────
+    const combined = Math.round(qScore * 0.55 + dScore * 0.45);
+
+    let tier, tierCol, tierBg;
+    if (combined >= 80)       { tier = 'BEST';   tierCol = '#00ffcc'; tierBg = '#00ffcc22'; }
+    else if (combined >= 65)  { tier = 'STRONG'; tierCol = '#7fffb2'; tierBg = '#7fffb222'; }
+    else if (combined >= 40)  { tier = 'WATCH';  tierCol = '#ffcf40'; tierBg = '#ffcf4022'; }
+    else                      { tier = 'AVOID';  tierCol = '#ff7c7c'; tierBg = '#ff7c7c22'; }
+
+    return { ticker, combined, qScore: Math.round(qScore), dScore: Math.round(dScore),
+             tier, tierCol, tierBg, sector: m.sector || rec.sector || '', pd, td };
+  }).filter(s => s.combined > 0);
+
+  scored.sort((a, b) => b.combined - a.combined);
+
+  // Populate sector dropdown
+  const sectors = [...new Set(scored.map(s => s.sector).filter(Boolean))].sort();
+  const sel = el('scan-sector');
+  if (sel) sectors.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    sel.appendChild(opt);
+  });
+
+  function applyFilter() {
+    const secF  = el('scan-sector')?.value || '';
+    const tierF = el('scan-tier')?.value   || '';
+    const filt  = scored.filter(s =>
+      (!secF  || s.sector === secF) &&
+      (!tierF || s.tier   === tierF)
+    );
+    el('scan-count').textContent = filt.length + ' stocks';
+    el('scan-grid').innerHTML = filt.map(s => {
+      const chg = s.pd.change_pct;
+      const chgStr = chg != null ? `<span style="color:${chg>=0?'#7fffb2':'#ff6b6b'};font-size:10px">${chg>=0?'+':''}${chg.toFixed(1)}%</span>` : '';
+      const rsiStr = s.td.rsi != null ? `RSI ${s.td.rsi.toFixed(0)}` : '';
+      const tvStr  = s.td.tv_rec_label ? s.td.tv_rec_label.replace('_',' ') : '';
+      return `<div class="scan-card ${s.tier.toLowerCase()}">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <div>
+            <div class="scan-score" style="color:${s.tierCol}">${s.combined}</div>
+            <div class="scan-tier-chip" style="color:${s.tierCol};background:${s.tierBg};border:1px solid ${s.tierCol}55">${s.tier}</div>
+          </div>
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+              <span style="font-weight:800;font-family:monospace;font-size:14px">${s.ticker}</span>
+              ${chgStr}
+              ${s.pd.price ? `<span style="font-size:11px;opacity:.6">$${s.pd.price.toFixed(2)}</span>` : ''}
+            </div>
+            <div style="font-size:10px;opacity:.5;margin-top:1px">${s.sector}</div>
+            <div style="display:flex;gap:10px;margin-top:5px;font-size:10px;font-family:monospace">
+              <span style="color:#00c8ff">Q ${s.qScore}</span>
+              <span style="color:#b084ff">D ${s.dScore}</span>
+              ${tvStr ? `<span style="opacity:.6">${tvStr}</span>` : ''}
+              ${rsiStr ? `<span style="opacity:.6">${rsiStr}</span>` : ''}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  el('scan-sector')?.addEventListener('change', applyFilter);
+  el('scan-tier')?.addEventListener('change', applyFilter);
+  applyFilter();
+}
+
+</script>
 </body>
 </html>
