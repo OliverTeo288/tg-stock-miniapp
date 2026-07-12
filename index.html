@@ -302,6 +302,15 @@ body{
   <div id="bao-lead"></div>
   <div class="card" id="bao-subs" style="padding:8px 14px"></div>
 
+  <!-- Exit Plan / Pre-Earnings / Macro Ignition — moved inside pg-picks 2026-07-13.
+       These previously sat between pg-stocks and pg-pred but weren't wrapped in a
+       .page div themselves, so the tab switcher's `.page{display:none}` /
+       `.page.active{display:block}` rule never governed them — they rendered
+       regardless of which tab was active instead of only showing on Picks. -->
+  <div id="macroIgnitionTg" style="display:none;padding:10px 12px"><div style="font-size:11px;font-weight:700;letter-spacing:1px;opacity:.5;margin-bottom:8px">🔥 MACRO IGNITION</div><div class="ign-body"></div></div>
+  <div id="preEarningsTg" style="display:none;padding:10px 12px"><div style="font-size:11px;font-weight:700;letter-spacing:1px;opacity:.5;margin-bottom:6px">📅 PRE-EARNINGS PLAYS</div><div class="pe-body"></div></div>
+  <div id="exitSectionTg" style="display:none;padding:10px 12px"><div style="font-size:11px;font-weight:700;letter-spacing:1px;opacity:.5;margin-bottom:6px">🚨 EXIT PLAN — WHEN TO SELL</div><div class="exit-body"></div></div>
+
   <div class="sec">💎 Hidden Gems</div>
   <div class="sec-sub">High-signal stocks that are under-covered or under-priced — strong conviction but outside the spotlight.</div>
   <div id="gems-list"></div>
@@ -374,7 +383,7 @@ body{
 </div>
 
 
-<div id="macroIgnitionTg" style="display:none;padding:10px 12px"><div style="font-size:11px;font-weight:700;letter-spacing:1px;opacity:.5;margin-bottom:8px">🔥 MACRO IGNITION</div><div class="ign-body"></div></div><div id="preEarningsTg" style="display:none;padding:10px 12px"><div style="font-size:11px;font-weight:700;letter-spacing:1px;opacity:.5;margin-bottom:6px">📅 PRE-EARNINGS PLAYS</div><div class="pe-body"></div></div><div id="exitSectionTg" style="display:none;padding:10px 12px"><div style="font-size:11px;font-weight:700;letter-spacing:1px;opacity:.5;margin-bottom:6px">🚨 EXIT PLAN — WHEN TO SELL</div><div class="exit-body"></div></div><div class="page" id="pg-pred">
+<div class="page" id="pg-pred">
   <div class="sec">🔮 AI Prediction</div>
   <div class="sec-sub">Multi-factor model: Technical (30%) · Momentum (25%) · Catalyst (25%) · Sentiment (20%). Scored across all watchlist stocks at run time.</div>
   <div style="display:flex;gap:8px;margin-bottom:10px" id="predTabBarTg">
