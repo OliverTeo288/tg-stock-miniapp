@@ -68,6 +68,30 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-si
 .pill-dim  {background:rgba(90,112,144,.12);color:var(--dim);  border-color:rgba(90,112,144,.2)}
 .term-ts{font-size:11px;color:var(--dim);margin-left:auto}
 
+/* ── Sticky tab navigation ────────────────────────────────── */
+.dash-tabbar{
+  position:sticky;top:0;z-index:50;
+  display:flex;gap:6px;flex-wrap:wrap;
+  padding:9px 12px;margin:0 0 16px;
+  background:rgba(6,11,20,.94);backdrop-filter:blur(10px);
+  border:1px solid var(--border);border-radius:8px;
+}
+.dash-tab{
+  display:flex;align-items:center;gap:7px;
+  padding:8px 16px;border-radius:6px;border:1px solid transparent;
+  background:transparent;color:var(--dim);
+  font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.5px;
+  cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.dash-tab:hover{background:var(--bg2);color:var(--text)}
+.dash-tab.active{background:rgba(0,229,255,.12);color:var(--cyan);border-color:rgba(0,229,255,.3)}
+.dash-tab-badge{
+  background:var(--red);color:#fff;font-size:9px;font-weight:800;
+  padding:1px 6px;border-radius:8px;line-height:1.4;
+}
+.dash-page{display:none}
+.dash-page.active{display:block}
+
 /* ── Section title ────────────────────────────────────────── */
 .section-title{
   font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:2px;
@@ -560,14 +584,20 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-si
 </div>
 
 
-<!-- SENTIMENT TREND (injected) -->
-<div class="section" id="sentTrendSection" style="display:none">
-  <div class="section-title">📈 SENTIMENT TREND <span>LAST 14 DAYS</span></div>
-  <div class="sent-trend-wrap">
-    <svg class="sent-trend-svg" id="sentTrendSvg" viewBox="0 0 800 120" preserveAspectRatio="none"></svg>
-    <div class="sent-trend-dates" id="sentTrendDates"></div>
-  </div>
+<!-- STICKY TAB NAVIGATION -->
+<div class="dash-tabbar" id="dashTabbar">
+  <button class="dash-tab active" data-tab="today" onclick="switchDashTab('today',this)">🎯 TODAY <span class="dash-tab-badge" id="tabBadgeToday" style="display:none"></span></button>
+  <button class="dash-tab" data-tab="predictions" onclick="switchDashTab('predictions',this)">🔮 PREDICTIONS</button>
+  <button class="dash-tab" data-tab="screener" onclick="switchDashTab('screener',this)">🔍 SCREENER</button>
+  <button class="dash-tab" data-tab="market" onclick="switchDashTab('market',this)">📡 MARKET</button>
+  <button class="dash-tab" data-tab="news" onclick="switchDashTab('news',this)">📰 NEWS</button>
 </div>
+
+<!-- ══════════════════════════ TAB: TODAY ══════════════════════════ -->
+<div class="dash-page active" data-tab="today">
+
+<!-- CRASH RISK BANNER -->
+<div id="crashRiskSection" style="margin-bottom:8px"></div>
 
 <!-- SECTION 1: #1 PICK HERO + TOP 5 -->
 <div class="section">
@@ -577,9 +607,30 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-si
   <div class="hero-wrap" id="heroWrap"></div>
 </div>
 
+<div class="section" id="macroIgnitionBanner" style="display:none"><div class="section-title">🔥 MACRO IGNITION <span>NEW TREND ENTERING</span><span class="info-icon" data-tip="A structural macro theme just crossed 0.30 heat threshold. Buy these tickers before the trend is fully priced in."></span></div><div class="ign-body"></div></div><div class="section" id="preEarningsSection" style="display:none"><div class="section-title">📅 PRE-EARNINGS PLAYS <span>2-5 DAYS BEFORE REPORT</span><span class="info-icon" data-tip="Stocks with earnings in 2-5 days showing positive drift. Pre-earnings runup averages +2-3% historically — this is the entry window."></span></div><div class="pe-body"></div></div><div class="section" id="exitSection" style="display:none"><div class="section-title">🚨 EXIT PLAN <span>WHEN TO SELL, AND AT WHAT PRICE</span><span class="info-icon" data-tip="For every ticker with a tracked entry: stop-loss and take-profit levels, plus TV signal reversal and fading-thesis alerts.&#10;&#10;STOP_LOSS = price hit your stop  ·  TAKE_PROFIT = at/above target  ·  URGENT = technicals flipped SELL  ·  WATCH = thesis weakening, use judgment"></span></div><div class="exit-summary"></div><div class="exit-body exit-grid"></div></div>
 
-<!-- SECTION 1.5: AI PREDICTIONS -->
-<div class="section" id="macroIgnitionBanner" style="display:none"><div class="section-title">🔥 MACRO IGNITION <span>NEW TREND ENTERING</span><span class="info-icon" data-tip="A structural macro theme just crossed 0.30 heat threshold. Buy these tickers before the trend is fully priced in."></span></div><div class="ign-body"></div></div><div class="section" id="preEarningsSection" style="display:none"><div class="section-title">📅 PRE-EARNINGS PLAYS <span>2-5 DAYS BEFORE REPORT</span><span class="info-icon" data-tip="Stocks with earnings in 2-5 days showing positive drift. Pre-earnings runup averages +2-3% historically — this is the entry window."></span></div><div class="pe-body"></div></div><div class="section" id="exitSection" style="display:none"><div class="section-title">🚨 EXIT PLAN <span>WHEN TO SELL, AND AT WHAT PRICE</span><span class="info-icon" data-tip="For every ticker with a tracked entry: stop-loss and take-profit levels, plus TV signal reversal and fading-thesis alerts.&#10;&#10;STOP_LOSS = price hit your stop  ·  TAKE_PROFIT = at/above target  ·  URGENT = technicals flipped SELL  ·  WATCH = thesis weakening, use judgment"></span></div><div class="exit-summary"></div><div class="exit-body exit-grid"></div></div><div class="section" id="predSection">
+<!-- SECTION 1.7: EARNINGS RADAR -->
+<div class="section" id="earningsSection">
+  <div class="section-title">📅 EARNINGS RADAR <span>UPCOMING CATALYSTS</span>
+    <span class="info-icon" data-tip="All watched tickers with earnings scheduled in the next 45 days or reported in the last 7 days.&#10;&#10;🔴 IMMINENT (≤5d): Pre-earnings runup window — highest catalyst boost in prediction model.&#10;🔵 SOON (6–21d): Approaching earnings — elevated scoring.&#10;⚪ WATCH (22–45d): On the radar.&#10;🕓 RECENT: Just reported — post-earnings reaction in play.&#10;&#10;Earnings proximity is one of four dimensions in the AI Prediction model.">?</span>
+    <span id="earnCount" style="margin-left:8px;font-size:10px;opacity:.4"></span>
+  </div>
+  <div class="earn-filter-row">
+    <button class="earn-filter-btn active" onclick="filterEarnings('all',this)">ALL</button>
+    <button class="earn-filter-btn" onclick="filterEarnings('imminent',this)">🔴 IMMINENT ≤5d</button>
+    <button class="earn-filter-btn" onclick="filterEarnings('soon',this)">🔵 SOON 6–21d</button>
+    <button class="earn-filter-btn" onclick="filterEarnings('watch',this)">⚪ WATCH 22–45d</button>
+    <button class="earn-filter-btn" onclick="filterEarnings('past',this)">🕓 RECENT</button>
+  </div>
+  <div id="earningsGrid" class="earn-grid"></div>
+</div>
+
+</div><!-- /tab: today -->
+
+<!-- ══════════════════════════ TAB: PREDICTIONS ══════════════════════════ -->
+<div class="dash-page" data-tab="predictions">
+
+<div class="section" id="predSection">
   <div class="section-title">🔮 AI PREDICTION <span>NEXT BEST BUY</span>
     <span class="info-icon" data-tip="Multi-factor model scoring every watchlist stock across 4 dimensions: Technical alignment (30%), Momentum (25%), Catalyst quality (25%), Sentiment confluence (20%). Top-5 picks by conviction score.">?</span>
   </div>
@@ -591,6 +642,10 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-si
   <div id="predTrackRecord" style="margin-top:14px"></div>
 </div>
 
+</div><!-- /tab: predictions -->
+
+<!-- ══════════════════════════ TAB: SCREENER ══════════════════════════ -->
+<div class="dash-page" data-tab="screener">
 
 <!-- SECTION: SCANNER -->
 <div class="section" id="scannerSection">
@@ -611,31 +666,6 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-si
     <span id="scan-count-d" style="font-size:10px;opacity:.4;align-self:center;font-family:var(--mono)"></span>
   </div>
   <div id="scanGrid" class="scan-grid"></div>
-</div>
-
-<!-- SECTION 1.7: EARNINGS RADAR -->
-<div class="section" id="earningsSection">
-  <div class="section-title">📅 EARNINGS RADAR <span>UPCOMING CATALYSTS</span>
-    <span class="info-icon" data-tip="All watched tickers with earnings scheduled in the next 45 days or reported in the last 7 days.&#10;&#10;🔴 IMMINENT (≤5d): Pre-earnings runup window — highest catalyst boost in prediction model.&#10;🔵 SOON (6–21d): Approaching earnings — elevated scoring.&#10;⚪ WATCH (22–45d): On the radar.&#10;🕓 RECENT: Just reported — post-earnings reaction in play.&#10;&#10;Earnings proximity is one of four dimensions in the AI Prediction model.">?</span>
-    <span id="earnCount" style="margin-left:8px;font-size:10px;opacity:.4"></span>
-  </div>
-  <div class="earn-filter-row">
-    <button class="earn-filter-btn active" onclick="filterEarnings('all',this)">ALL</button>
-    <button class="earn-filter-btn" onclick="filterEarnings('imminent',this)">🔴 IMMINENT ≤5d</button>
-    <button class="earn-filter-btn" onclick="filterEarnings('soon',this)">🔵 SOON 6–21d</button>
-    <button class="earn-filter-btn" onclick="filterEarnings('watch',this)">⚪ WATCH 22–45d</button>
-    <button class="earn-filter-btn" onclick="filterEarnings('past',this)">🕓 RECENT</button>
-  </div>
-  <div id="earningsGrid" class="earn-grid"></div>
-</div>
-
-<!-- SECTION 2: PRE / POST MARKET MOVERS -->
-<div class="section" id="moversSection">
-  <div class="section-title">⚡ EXTENDED HOURS MOVERS <span id="marketStatePill"></span>
-    <span class="info-icon" data-tip="Stocks moving ±1.5% or more outside regular trading hours.&#10;&#10;Pre-market:  4:00 PM – 9:30 PM SGT&#10;Regular:     9:30 PM – 4:00 AM SGT (+1)&#10;Post-market: 4:00 AM – 8:00 AM SGT (+1)&#10;&#10;These moves often signal earnings reactions,&#10;breaking news, or sector rotation before the open.">?</span>
-  </div>
-  <p class="section-sub" id="moverSubtitle"></p>
-  <div class="movers-grid" id="moversGrid"></div>
 </div>
 
 <!-- SECTION 3: HIDDEN GEMS -->
@@ -675,6 +705,29 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-si
     <tbody id="picksBody"></tbody>
   </table>
   </div>
+</div>
+
+</div><!-- /tab: screener -->
+
+<!-- ══════════════════════════ TAB: MARKET ══════════════════════════ -->
+<div class="dash-page" data-tab="market">
+
+<!-- SENTIMENT TREND (injected) -->
+<div class="section" id="sentTrendSection" style="display:none">
+  <div class="section-title">📈 SENTIMENT TREND <span>LAST 14 DAYS</span></div>
+  <div class="sent-trend-wrap">
+    <svg class="sent-trend-svg" id="sentTrendSvg" viewBox="0 0 800 120" preserveAspectRatio="none"></svg>
+    <div class="sent-trend-dates" id="sentTrendDates"></div>
+  </div>
+</div>
+
+<!-- SECTION 2: PRE / POST MARKET MOVERS -->
+<div class="section" id="moversSection">
+  <div class="section-title">⚡ EXTENDED HOURS MOVERS <span id="marketStatePill"></span>
+    <span class="info-icon" data-tip="Stocks moving ±1.5% or more outside regular trading hours.&#10;&#10;Pre-market:  4:00 PM – 9:30 PM SGT&#10;Regular:     9:30 PM – 4:00 AM SGT (+1)&#10;Post-market: 4:00 AM – 8:00 AM SGT (+1)&#10;&#10;These moves often signal earnings reactions,&#10;breaking news, or sector rotation before the open.">?</span>
+  </div>
+  <p class="section-sub" id="moverSubtitle"></p>
+  <div class="movers-grid" id="moversGrid"></div>
 </div>
 
 <!-- SECTION TV: TRADINGVIEW SCREENER MOVERS -->
@@ -732,6 +785,11 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-si
   </div>
 </div>
 
+</div><!-- /tab: market -->
+
+<!-- ══════════════════════════ TAB: NEWS ══════════════════════════ -->
+<div class="dash-page" data-tab="news">
+
 <!-- SECTION 8: HEADLINES -->
 <div class="section">
   <div class="section-title">📰 NEWS FEED <span id="newsCountLabel"></span>
@@ -745,6 +803,8 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-si
   </div>
   <div class="news-unified" id="newsList"></div>
 </div>
+
+</div><!-- /tab: news -->
 
 </div><!-- /.app -->
 
@@ -843,6 +903,14 @@ function renderHeader(){
     const vc = ms.vix_label==='EXTREME FEAR'||ms.vix_label==='FEAR'?'pill-red':
                ms.vix_label==='CALM'||ms.vix_label==='EXTREME COMPLACENCY'?'pill-green':'pill-gold';
     pills += `<span class="pill ${vc}">VIX ${fmt(ms.vix,1)} · ${ms.vix_label||''}</span>`;
+  }
+
+  // Macro regime pill (10Y yield / dollar / oil — see compute_macro_regime())
+  if(ms.macro_regime){
+    const mrc = ms.macro_regime==='RISK-OFF'?'pill-red':ms.macro_regime==='CAUTION'?'pill-gold':
+                ms.macro_regime==='RISK-ON'?'pill-green':'pill-dim';
+    const mrTip = (ms.macro_factors||[]).join(' · ') || 'No notable single-session macro moves';
+    pills += `<span class="pill ${mrc}" title="${mrTip}">MACRO ${ms.macro_regime}</span>`;
   }
 
   // Fear & Greed pill
@@ -2061,7 +2129,30 @@ function renderScanner() {
   applyFilter();
 }
 
+function switchDashTab(tabId, btn) {
+  document.querySelectorAll('.dash-page').forEach(p => p.classList.toggle('active', p.dataset.tab === tabId));
+  document.querySelectorAll('.dash-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  window.scrollTo({top: 0, behavior: 'instant'});
+}
+
+function updateTodayBadge() {
+  // Surface how many things need attention on the TODAY tab's own button, so it's
+  // obvious there's something to look at before you even click into the tab —
+  // count = open exit-plan alerts + 1 if crash risk is elevated.
+  const exitCount = (D.exit_signals || []).length;
+  const crash = D.crash_risk || {};
+  const crashActive = (crash.risk_level && crash.risk_level !== 'LOW') ? 1 : 0;
+  const n = exitCount + crashActive;
+  const badge = $('tabBadgeToday');
+  if (badge) {
+    if (n > 0) { badge.textContent = n; badge.style.display = ''; }
+    else { badge.style.display = 'none'; }
+  }
+}
+
 renderHeader();renderCrashRisk();renderExitSignals();renderPreEarnings();renderMacroIgnitions();
+updateTodayBadge();
 renderHero();
 renderPredictions('ai');
 renderTrackRecord();
@@ -2167,7 +2258,5 @@ function renderMacroIgnitions() {
   el.querySelector('.ign-body').innerHTML = items;
 }</script>
 </body>
-</html><!-- CRASH RISK BANNER -->
-<div id="crashRiskSection" style="margin-bottom:8px"></div>
-
+</html>
 
