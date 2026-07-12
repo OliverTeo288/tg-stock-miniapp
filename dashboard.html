@@ -219,10 +219,15 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-si
   border:1px solid rgba(0,229,255,.3);
   margin-bottom:12px;
 }
-.hero-rationale{list-style:none;display:flex;flex-direction:column;gap:5px}
+.hero-exit-strip{
+  font-size:11px;font-family:var(--mono);color:var(--text);
+  padding:6px 10px;margin-bottom:10px;border-radius:5px;
+  background:rgba(255,255,255,.03);border:1px solid var(--border);
+}
+.hero-rationale{list-style:none;display:flex;flex-direction:column;gap:4px}
 .hero-rationale li{
-  font-size:12px;color:var(--text);
-  padding:4px 8px;background:rgba(255,255,255,.04);border-radius:4px;
+  font-size:11px;color:var(--text);line-height:1.35;
+  padding:3px 8px;background:rgba(255,255,255,.04);border-radius:4px;
   border-left:2px solid var(--cyan2);
 }
 .hero-metrics{display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap}
@@ -663,9 +668,28 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-si
       <option value="WATCH">🟠 WATCH (40–64)</option>
       <option value="AVOID">🔴 AVOID (&lt;40)</option>
     </select>
+    <input id="scan-search-d" type="text" placeholder="🔍 Ticker…" autocomplete="off" autocorrect="off" autocapitalize="characters" style="background:var(--card);border:1px solid var(--border);color:var(--fg);padding:5px 10px;border-radius:4px;font-size:11px;width:120px">
     <span id="scan-count-d" style="font-size:10px;opacity:.4;align-self:center;font-family:var(--mono)"></span>
   </div>
-  <div id="scanGrid" class="scan-grid"></div>
+  <div style="overflow-x:auto">
+  <table class="picks-table" id="scanTable">
+    <thead>
+      <tr>
+        <th style="cursor:pointer" onclick="sortScanner('combined')">SCORE ▾</th>
+        <th>TIER</th>
+        <th style="cursor:pointer" onclick="sortScanner('ticker')">TICKER</th>
+        <th>PRICE</th>
+        <th style="cursor:pointer" onclick="sortScanner('chg')">CHG%</th>
+        <th title="Quality sub-score (TV signal, RSI, momentum) — 55% weight">Q</th>
+        <th title="Discount sub-score (52w pullback, not overbought) — 45% weight">D</th>
+        <th>TV</th>
+        <th>RSI</th>
+        <th>SECTOR</th>
+      </tr>
+    </thead>
+    <tbody id="scanGrid"></tbody>
+  </table>
+  </div>
 </div>
 
 <!-- SECTION 3: HIDDEN GEMS -->
@@ -1009,6 +1033,10 @@ function renderHero(){
 
   const ratHtml = (p.rationale||[]).map(r=>`<li>${r}</li>`).join('');
   const tagsHtml = (p.signal_tags||[]).slice(0,4).map(t=>`<span class="pick-tag">${t}</span>`).join('');
+  const exitHtml = (p.stop_price!=null && p.target_price!=null)
+    ? `<div class="hero-exit-strip">🛡 <b>Stop</b> ${fmtPrice(p.stop_price)} <span class="c-red">(${p.stop_pct}%)</span>
+       &nbsp;·&nbsp; 🎯 <b>Target</b> ${fmtPrice(p.target_price)} <span class="c-green">(+${p.target_pct}%)</span></div>`
+    : '';
 
   const hero = document.createElement('div');
   hero.className = 'hero-card';
@@ -1017,6 +1045,7 @@ function renderHero(){
     <div class="hero-price">${fmtPrice(p.price)} <span class="${chgClass(p.change_pct)}" style="font-size:16px">${pct(p.change_pct)}</span></div>
     <div class="hero-tier">${p.tier}</div>
     <div class="hero-metrics">${metaHtml}</div>
+    ${exitHtml}
     ${tagsHtml?`<div class="pick-tags" style="margin-bottom:10px">${tagsHtml}</div>`:''}
     <ul class="hero-rationale">${ratHtml}</ul>
   `;
@@ -1043,6 +1072,7 @@ function renderHero(){
         if(p.target_price&&cur2){const up2=((p.target_price-cur2)/cur2*100).toFixed(1);return `<div class="pick-target c-dim">52W Hi ${fmtPrice(p.target_price)} <span class="c-dim">▲${up2}%</span></div>`;}
         return '';
       })()}
+      ${p.stop_price!=null ? `<div style="font-size:10px;font-family:var(--mono);margin-top:2px"><span class="c-red">🛡 ${fmtPrice(p.stop_price)}</span> <span style="opacity:.4">/</span> <span class="c-green">🎯 ${fmtPrice(p.target_price)}</span></div>` : ''}
       <div class="pick-tags">${(p.signal_tags||[]).slice(0,2).map(t=>`<span class="pick-tag">${t}</span>`).join('')}</div>
       <div class="pick-sector c-dim">${p.sector||''}</div>
       <div class="pick-rationale">${(p.rationale||[])[0]||''}</div>
@@ -2094,38 +2124,53 @@ function renderScanner() {
     o.value=s; o.textContent=s; selD.appendChild(o);
   });
 
+  // Compact table, not a card grid — 150 tracked stocks as large cards was the single
+  // biggest source of scroll length in the old design (~75 rows of 2-up cards). Sortable
+  // by score/ticker/change via clickable headers (window.sortScanner), matching the same
+  // pattern the "All Picks" table already uses elsewhere in this file.
+  let _scanSort = { key: 'combined', dir: -1 };
+  window.sortScanner = function(key) {
+    _scanSort = _scanSort.key === key ? { key, dir: -_scanSort.dir } : { key, dir: key === 'ticker' ? 1 : -1 };
+    applyFilter();
+  };
+
   function applyFilter() {
     const secF  = ($('scan-sector-d')||{}).value || '';
     const tierF = ($('scan-tier-d')||{}).value   || '';
-    const filt  = scored.filter(s => (!secF||s.sector===secF) && (!tierF||s.tier===tierF));
-    $('scan-count-d').textContent = filt.length + ' stocks';
+    const qF    = (($('scan-search-d')||{}).value || '').trim().toUpperCase();
+    let filt  = scored.filter(s =>
+      (!secF||s.sector===secF) && (!tierF||s.tier===tierF) && (!qF||s.ticker.includes(qF))
+    );
+    const { key, dir } = _scanSort;
+    filt = filt.slice().sort((a,b) => {
+      if (key === 'ticker') return dir * a.ticker.localeCompare(b.ticker);
+      if (key === 'chg')    return dir * ((a.pd.change_pct||0) - (b.pd.change_pct||0));
+      return dir * (a[key] - b[key]);
+    });
+    $('scan-count-d').textContent = filt.length + ' of ' + scored.length + ' stocks';
     $('scanGrid').innerHTML = filt.map(s => {
       const chg = s.pd.change_pct;
-      const chgStr = chg!=null ? `<span style="color:${chg>=0?'#7fffb2':'#ff6b6b'};font-size:10px">${chg>=0?'+':''}${chg.toFixed(1)}%</span>` : '';
-      const rsiStr = s.td.rsi!=null ? `RSI ${s.td.rsi.toFixed(0)}` : '';
-      const tvStr  = s.td.tv_rec_label ? s.td.tv_rec_label.replace('_',' ') : '';
-      const priceStr = s.pd.price ? `$${s.pd.price.toFixed(2)}` : '';
-      return `<div class="scan-card ${s.tier.toLowerCase()}">
-        <div style="display:flex;gap:12px">
-          <div>
-            <div class="scan-score-big" style="color:${s.tierCol}">${s.combined}</div>
-            <div class="scan-tier-chip" style="color:${s.tierCol};background:${s.tierBg};border:1px solid ${s.tierCol}55">${s.tier}</div>
-          </div>
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <span style="font-weight:700;font-family:var(--mono);font-size:14px">${s.ticker}</span>
-              <span style="font-size:12px;opacity:.6">${priceStr}</span>
-              ${chgStr}
-            </div>
-            <div style="font-size:10px;opacity:.45;margin-top:1px">${s.sector}</div>
-            <div class="scan-dim">Q ${s.qScore} · D ${s.dScore} ${tvStr ? '· '+tvStr : ''} ${rsiStr ? '· '+rsiStr : ''}</div>
-          </div>
-        </div>
-      </div>`;
+      const chgStr = chg!=null ? `<span class="td-chg" style="color:${chg>=0?'#7fffb2':'#ff6b6b'}">${chg>=0?'+':''}${chg.toFixed(1)}%</span>` : '–';
+      const rsiStr = s.td.rsi!=null ? s.td.rsi.toFixed(0) : '–';
+      const tvStr  = s.td.tv_rec_label ? s.td.tv_rec_label.replace('_',' ') : '–';
+      const priceStr = s.pd.price ? `$${s.pd.price.toFixed(2)}` : '–';
+      return `<tr>
+        <td><span style="font-family:var(--mono);font-weight:800;font-size:15px;color:${s.tierCol}">${s.combined}</span></td>
+        <td><span class="td-tier" style="color:${s.tierCol};background:${s.tierBg};border:1px solid ${s.tierCol}55">${s.tier}</span></td>
+        <td class="td-ticker">${s.ticker}</td>
+        <td class="td-price">${priceStr}</td>
+        <td>${chgStr}</td>
+        <td class="td-score">${s.qScore}</td>
+        <td class="td-score">${s.dScore}</td>
+        <td class="td-score">${tvStr}</td>
+        <td class="td-score">${rsiStr}</td>
+        <td class="td-sector">${s.sector}</td>
+      </tr>`;
     }).join('');
   }
   $('scan-sector-d')?.addEventListener('change', applyFilter);
   $('scan-tier-d')?.addEventListener('change', applyFilter);
+  $('scan-search-d')?.addEventListener('input', applyFilter);
   applyFilter();
 }
 
