@@ -1417,6 +1417,21 @@ function renderTrackRecordTg() {
     html += '</div>';
   }
 
+  // Chronic underperformers — see market_dashboard.html's renderTrackRecord() for
+  // the full rationale (added 2026-07-13 alongside the accuracy dedup fix).
+  const worst = acc.worst_tickers || [];
+  if (worst.length) {
+    html += '<div class="sec" style="margin-top:10px">&#9888;&#65039; Chronic Underperformers</div><div class="card">';
+    worst.forEach(w => {
+      html += '<div class="tr-breakdown-row">'
+        + '<span style="font-weight:800">'+w.ticker+'</span>'
+        + '<span style="color:var(--bear)">'+w.hit_rate+'% win</span>'
+        + '<span style="color:var(--faint)">'+w.avg_ret.toFixed(1)+'% avg &middot; '+w.n+'</span>'
+        + '</div>';
+    });
+    html += '</div>';
+  }
+
   cont.innerHTML = html;
 }
 
