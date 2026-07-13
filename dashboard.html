@@ -1851,6 +1851,24 @@ function renderTrackRecord(){
     html += '</div>';
   }
 
+  // Chronic underperformers — tickers repeatedly picked with a deeply negative
+  // avg return (n>=3 distinct trades). Added 2026-07-13 so problem tickers like
+  // AVGO/MP surface here instead of requiring manual prediction_log.json mining —
+  // this is the model's own "don't recommend these again without re-checking" list,
+  // and pipeline.py's perf_penalty already discounts them, but Oliver should be able
+  // to see WHY a name vanished from picks or is being scored lower.
+  const worst = acc.worst_tickers || [];
+  if(worst.length){
+    html += '<div style="margin-top:10px">'
+      +'<div style="font-size:9px;opacity:.4;letter-spacing:.5px;margin-bottom:4px">⚠️ CHRONIC UNDERPERFORMERS <span style="opacity:.6">— repeatedly picked, repeatedly lost ('+label+')</span></div>';
+    worst.forEach(w => {
+      html += '<div class="track-row"><span style="font-family:var(--mono);font-weight:700">'+w.ticker+'</span>'
+        +'<span style="color:#ff7c7c">'+w.hit_rate+'% hit &nbsp;</span>'
+        +'<span style="opacity:.5">'+w.avg_ret.toFixed(1)+'% avg ('+w.n+' trades)</span></div>';
+    });
+    html += '</div>';
+  }
+
   html += '</div>';
   cont.innerHTML = html;
 }
