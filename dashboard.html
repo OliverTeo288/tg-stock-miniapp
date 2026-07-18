@@ -266,6 +266,7 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);font-si
 .exit-card.urg-STOP_LOSS{border-left-color:#ff4444}
 .exit-card.urg-URGENT{border-left-color:#ff8c00}
 .exit-card.urg-TAKE_PROFIT{border-left-color:#ffd700}
+.exit-card.urg-TIME_EXIT{border-left-color:#b084ff}
 .exit-card.urg-WATCH{border-left-color:#00c8ff}
 .exit-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px}
 .exit-ticker{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--text)}
@@ -2238,12 +2239,12 @@ function renderExitSignals() {
   if (!el) return;
   if (!sigs.length) { el.style.display = 'none'; return; }
   el.style.display = '';
-  const urgencyColor = { STOP_LOSS:'#ff4444', URGENT:'#ff8c00', TAKE_PROFIT:'#ffd700', WATCH:'#00c8ff' };
-  const urgencyIcon  = { STOP_LOSS:'🚨', URGENT:'⚡', TAKE_PROFIT:'💰', WATCH:'👁' };
+  const urgencyColor = { STOP_LOSS:'#ff4444', URGENT:'#ff8c00', TAKE_PROFIT:'#ffd700', TIME_EXIT:'#b084ff', WATCH:'#00c8ff' };
+  const urgencyIcon  = { STOP_LOSS:'🚨', URGENT:'⚡', TAKE_PROFIT:'💰', TIME_EXIT:'⏳', WATCH:'👁' };
 
   const counts = {};
   sigs.forEach(s => { counts[s.urgency] = (counts[s.urgency]||0) + 1; });
-  const summaryParts = ['STOP_LOSS','URGENT','TAKE_PROFIT','WATCH']
+  const summaryParts = ['STOP_LOSS','URGENT','TAKE_PROFIT','TIME_EXIT','WATCH']
     .filter(u => counts[u])
     .map(u => `<span style="color:${urgencyColor[u]}">${urgencyIcon[u]} ${counts[u]} ${u.replace('_',' ')}</span>`);
   el.querySelector('.exit-summary').innerHTML = summaryParts.join('  ·  ');
