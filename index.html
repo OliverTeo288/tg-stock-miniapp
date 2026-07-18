@@ -1514,8 +1514,8 @@ function renderExitSignalsTg() {
   if (!el) return;
   if (!sigs.length) { el.style.display='none'; return; }
   el.style.display='';
-  const urgCol = {STOP_LOSS:'#ff4444',URGENT:'#ff8c00',TAKE_PROFIT:'#ffd700',WATCH:'#00c8ff'};
-  const urgIco = {STOP_LOSS:'🚨',URGENT:'⚡',TAKE_PROFIT:'💰',WATCH:'👁'};
+  const urgCol = {STOP_LOSS:'#ff4444',URGENT:'#ff8c00',TAKE_PROFIT:'#ffd700',TIME_EXIT:'#b084ff',WATCH:'#00c8ff'};
+  const urgIco = {STOP_LOSS:'🚨',URGENT:'⚡',TAKE_PROFIT:'💰',TIME_EXIT:'⏳',WATCH:'👁'};
   el.querySelector('.exit-body').innerHTML = sigs.map(s => {
     const col = urgCol[s.urgency]||'#aaa';
     const pnl = (s.pnl_pct>=0?'+':'')+s.pnl_pct.toFixed(1)+'%';
